@@ -1,0 +1,868 @@
+[
+  {
+    "objectID": "api/core.html",
+    "href": "api/core.html",
+    "title": "Core",
+    "section": "",
+    "text": "This is the source code to fasthtml. You won’t need to read this unless you want to understand how things are built behind the scenes, or need full details of a particular API. The notebook is converted to the Python module fasthtml/core.py using nbdev.",
+    "crumbs": [
+      "Home",
+      "Source",
+      "Core"
+    ]
+  },
+  {
+    "objectID": "api/core.html#imports-and-utils",
+    "href": "api/core.html#imports-and-utils",
+    "title": "Core",
+    "section": "Imports and utils",
+    "text": "Imports and utils\n\nimport time\n\nfrom IPython import display\nfrom enum import Enum\nfrom pprint import pprint\n\nfrom fastcore.test import *\nfrom starlette.testclient import TestClient\nfrom starlette.requests import Headers\n\nWe write source code first, and then tests come after. The tests serve as both a means to confirm that the code works and also serves as working examples. The first declared function, is_typeddict, is an example of this pattern.\n\nsource\n\nis_typeddict\n\n is_typeddict (cls:type)\n\nCheck if cls is a TypedDict\n\nclass MyDict(TypedDict): name:str\n\nassert is_typeddict(MyDict)\nassert not is_typeddict({'a':1})\n\n\nsource\n\n\nis_namedtuple\n\n is_namedtuple (cls)\n\nTrue is cls is a namedtuple type\n\nassert is_namedtuple(namedtuple('tst', ['a']))\nassert not is_namedtuple(tuple)\n\n\nsource\n\n\ndate\n\n date (s:str)\n\nConvert s to a datetime\n\ndate('2pm')\n\ndatetime.datetime(2024, 7, 31, 14, 0)\n\n\n\nsource\n\n\nsnake2hyphens\n\n snake2hyphens (s:str)\n\nConvert s from snake case to hyphenated and capitalised\n\nsnake2hyphens(\"snake_case\")\n\n'Snake-Case'\n\n\n\nsource\n\n\nHtmxHeaders\n\n HtmxHeaders (boosted:str|None=None, current_url:str|None=None,\n              history_restore_request:str|None=None, prompt:str|None=None,\n              request:str|None=None, target:str|None=None,\n              trigger_name:str|None=None, trigger:str|None=None)\n\n\ndef test_request(url: str='/', headers: dict={}, method: str='get') -&gt; Request:\n    scope = {\n        'type': 'http',\n        'method': method,\n        'path': url,\n        'headers': Headers(headers).raw,\n        'query_string': b'',\n        'scheme': 'http',\n        'client': ('127.0.0.1', 8000),\n        'server': ('127.0.0.1', 8000),\n    }\n    receive = lambda: {\"body\": b\"\", \"more_body\": False}\n    return Request(scope, receive)\n\n\nh = test_request(headers=Headers({'HX-Request':'1'}))\n_get_htmx(h.headers)\n\nHtmxHeaders(boosted=None, current_url=None, history_restore_request=None, prompt=None, request='1', target=None, trigger_name=None, trigger=None)\n\n\n\nsource\n\n\nstr2int\n\n str2int (s)\n\nConvert s to an int\n\nstr2int('1'),str2int('none')\n\n(1, 0)",
+    "crumbs": [
+      "Home",
+      "Source",
+      "Core"
+    ]
+  },
+  {
+    "objectID": "api/core.html#request-and-response",
+    "href": "api/core.html#request-and-response",
+    "title": "Core",
+    "section": "Request and response",
+    "text": "Request and response\n\n_fix_anno(Union[str,None]),_fix_anno(float)\n\n(str, float)\n\n\n\n_fix_anno(int)('1')\n\n1\n\n\n\n_fix_anno(list[int])(['1','2'])\n\n[1, 2]\n\n\n\n_fix_anno(list[int])('1')\n\n[1]\n\n\n\nd = dict(k=int, l=List[int])\n_form_arg('k', \"1\", d)\n\n1\n\n\n\n_form_arg('l', \"1\", d)\n\n[1]\n\n\n\n_form_arg('l', [\"1\",\"2\"], d)\n\n[1, 2]\n\n\n\nsource\n\nHttpHeader\n\n HttpHeader (k:str, v:str)\n\n\nsource\n\n\nform2dict\n\n form2dict (form:starlette.datastructures.FormData)\n\nConvert starlette form data to a dict\n\nd = [('a',1),('a',2),('b',0)]\nfd = FormData(d)\nres = form2dict(fd)\ntest_eq(res['a'], [1,2])\ntest_eq(res['b'], 0)\n\n\nasync def f(req):\n    def _f(p:HttpHeader): ...\n    p = first(signature(_f).parameters.values())\n    result = await _from_body(req, p)\n    return JSONResponse(result.__dict__)\n\napp = Starlette(routes=[Route('/', f, methods=['POST'])])\nclient = TestClient(app)\n\nd = dict(k='value1',v=['value2','value3'])\nresponse = client.post('/', data=d)\nprint(response.json())\n\n{'k': 'value1', 'v': \"['value2', 'value3']\"}\n\n\n\ndef g(req, this:Starlette, a:str, b:HttpHeader): ...\n\nasync def f(req):\n    a = await _wrap_req(req, signature(g).parameters)\n    return Response(str(a))\n\napp = Starlette(routes=[Route('/', f, methods=['POST'])])\nclient = TestClient(app)\n\nresponse = client.post('/?a=1', data=d)\nprint(response.text)\n\n[&lt;starlette.requests.Request object&gt;, &lt;starlette.applications.Starlette object&gt;, '1', HttpHeader(k='value1', v=\"['value2', 'value3']\")]\n\n\n\nsource\n\n\nflat_xt\n\n flat_xt (lst)\n\nFlatten lists, except for FTs\n\nx = FT('a',1)\nflat_xt([x, x, [x,x]])\n\n[['a', 1, {}], ['a', 1, {}], ['a', 1, {}], ['a', 1, {}]]\n\n\n\nsource\n\n\nBeforeware\n\n Beforeware (f, skip=None)\n\nInitialize self. See help(type(self)) for accurate signature.",
+    "crumbs": [
+      "Home",
+      "Source",
+      "Core"
+    ]
+  },
+  {
+    "objectID": "api/core.html#websockets",
+    "href": "api/core.html#websockets",
+    "title": "Core",
+    "section": "Websockets",
+    "text": "Websockets\n\ndef on_receive(self, msg:str): return f\"Message text was: {msg}\"\nc = _ws_endp(on_receive)\napp = Starlette(routes=[WebSocketRoute('/', _ws_endp(on_receive))])\n\ncli = TestClient(app)\nwith cli.websocket_connect('/') as ws:\n    ws.send_text('{\"msg\":\"Hi!\"}')\n    data = ws.receive_text()\n    assert data == 'Message text was: Hi!'",
+    "crumbs": [
+      "Home",
+      "Source",
+      "Core"
+    ]
+  },
+  {
+    "objectID": "api/core.html#routing-and-application",
+    "href": "api/core.html#routing-and-application",
+    "title": "Core",
+    "section": "Routing and application",
+    "text": "Routing and application\n\nsource\n\nWS_RouteX\n\n WS_RouteX (path:str, recv, conn:&lt;built-infunctioncallable&gt;=None,\n            disconn:&lt;built-infunctioncallable&gt;=None, name=None,\n            middleware=None, hdrs=None, before=None)\n\nInitialize self. See help(type(self)) for accurate signature.\n\nsource\n\n\nRouteX\n\n RouteX (path:str, endpoint, methods=None, name=None,\n         include_in_schema=True, middleware=None, hdrs=None, ftrs=None,\n         before=None, after=None, htmlkw=None, **bodykw)\n\nInitialize self. See help(type(self)) for accurate signature.\n\nsource\n\n\nRouterX\n\n RouterX (routes=None, redirect_slashes=True, default=None,\n          on_startup=None, on_shutdown=None, lifespan=None,\n          middleware=None, hdrs=None, ftrs=None, before=None, after=None,\n          htmlkw=None, **bodykw)\n\nInitialize self. See help(type(self)) for accurate signature.\n\nsource\n\n\nget_key\n\n get_key (key=None, fname='.sesskey')\n\n\nget_key()\n\n'a604e4a2-08e8-462d-aff9-15468891fe09'\n\n\n\nsource\n\n\nFastHTML\n\n FastHTML (debug=False, routes=None, middleware=None,\n           exception_handlers=None, on_startup=None, on_shutdown=None,\n           lifespan=None, hdrs=None, ftrs=None, before=None, after=None,\n           default_hdrs=True, secret_key=None, session_cookie='session_',\n           max_age=31536000, ws_hdr=False, sess_path='/', same_site='lax',\n           sess_https_only=False, sess_domain=None, key_fname='.sesskey',\n           htmlkw=None, **bodykw)\n\n*Creates an application instance.\nParameters:\n\ndebug - Boolean indicating if debug tracebacks should be returned on errors.\nroutes - A list of routes to serve incoming HTTP and WebSocket requests.\nmiddleware - A list of middleware to run for every request. A starlette application will always automatically include two middleware classes. ServerErrorMiddleware is added as the very outermost middleware, to handle any uncaught errors occurring anywhere in the entire stack. ExceptionMiddleware is added as the very innermost middleware, to deal with handled exception cases occurring in the routing or endpoints.\nexception_handlers - A mapping of either integer status codes, or exception class types onto callables which handle the exceptions. Exception handler callables should be of the form handler(request, exc) -&gt; response and may be either standard functions, or async functions.\non_startup - A list of callables to run on application startup. Startup handler callables do not take any arguments, and may be either standard functions, or async functions.\non_shutdown - A list of callables to run on application shutdown. Shutdown handler callables do not take any arguments, and may be either standard functions, or async functions.\nlifespan - A lifespan context function, which can be used to perform startup and shutdown tasks. This is a newer style that replaces the on_startup and on_shutdown handlers. Use one or the other, not both.*",
+    "crumbs": [
+      "Home",
+      "Source",
+      "Core"
+    ]
+  },
+  {
+    "objectID": "api/core.html#extras",
+    "href": "api/core.html#extras",
+    "title": "Core",
+    "section": "Extras",
+    "text": "Extras\n\nsource\n\ncookie\n\n cookie (key:str, value='', max_age=None, expires=None, path='/',\n         domain=None, secure=False, httponly=False, samesite='lax')\n\nCreate a ‘set-cookie’ HttpHeader\n\nsource\n\n\nreg_re_param\n\n reg_re_param (m, s)\n\n\nsource\n\n\nMiddlewareBase\n\n MiddlewareBase ()\n\nInitialize self. See help(type(self)) for accurate signature.",
+    "crumbs": [
+      "Home",
+      "Source",
+      "Core"
+    ]
+  },
+  {
+    "objectID": "api/core.html#tests",
+    "href": "api/core.html#tests",
+    "title": "Core",
+    "section": "Tests",
+    "text": "Tests\n\ndef get_cli(app): return app,TestClient(app),app.route\n\n\napp,cli,rt = get_cli(FastHTML(secret_key='soopersecret'))\n\n\n@rt(\"/hi\")\ndef get(): return 'Hi there'\n\nr = cli.get('/hi')\nr.text\n\n'Hi there'\n\n\n\n@rt(\"/hi\")\ndef post(): return 'Postal'\n\ncli.post('/hi').text\n\n'Postal'\n\n\n\n@app.get(\"/\")\ndef show_host(req): return req.headers['host']\n\ncli.get('/').text\n\n'testserver'\n\n\n\n@rt('/user/{nm}', name='gday')\ndef get(nm:str=''): return f\"Good day to you, {nm}!\"\n\ncli.get('/user/Alexis').text\n\n'Good day to you, Alexis!'\n\n\n\ntest_eq(app.router.url_path_for('gday', nm='Jeremy'), '/user/Jeremy')\n\n\nhxhdr = {'headers':{'hx-request':\"1\"}}\n\n@rt('/ft')\ndef get(): return Title('Foo'),H1('bar')\n\ntxt = cli.get('/ft').text\nassert '&lt;title&gt;Foo&lt;/title&gt;' in txt and '&lt;h1&gt;bar&lt;/h1&gt;' in txt and '&lt;html&gt;' in txt\n\n@rt('/xt2')\ndef get(): return H1('bar')\n\ntxt = cli.get('/xt2').text\nassert '&lt;title&gt;FastHTML page&lt;/title&gt;' in txt and '&lt;h1&gt;bar&lt;/h1&gt;' in txt and '&lt;html&gt;' in txt\n\nassert cli.get('/xt2', **hxhdr).text.strip() == '&lt;h1&gt;bar&lt;/h1&gt;'\n\n@rt('/xt3')\ndef get(): return Html(Head(Title('hi')), Body(P('there')))\n\ntxt = cli.get('/xt3').text\nassert '&lt;title&gt;FastHTML page&lt;/title&gt;' not in txt and '&lt;title&gt;hi&lt;/title&gt;' in txt and '&lt;p&gt;there&lt;/p&gt;' in txt\n\n\ndef test_r(cli, path, exp, meth='get', hx=False, **kwargs):\n    if hx: kwargs['headers'] = {'hx-request':\"1\"}\n    test_eq(getattr(cli, meth)(path, **kwargs).text, exp)\n\napp.chk = 'foo'\nModelName = str_enum('ModelName', \"alexnet\", \"resnet\", \"lenet\")\nfake_db = [{\"name\": \"Foo\"}, {\"name\": \"Bar\"}]\n\n\n@rt('/html/{idx}')\nasync def get(idx:int): return Body(H4(f'Next is {idx+1}.'))\n\nreg_re_param(\"imgext\", \"ico|gif|jpg|jpeg|webm\")\n\n@rt(r'/static/{path:path}{fn}.{ext:imgext}')\ndef get(fn:str, path:str, ext:str): return f\"Getting {fn}.{ext} from /{path}\"\n\n@rt(\"/models/{nm}\")\ndef get(nm:ModelName): return nm\n\n@rt(\"/files/{path}\")\nasync def get(path: Path): return path.with_suffix('.txt')\n\n@rt(\"/items/\")\ndef get(idx:int|None = 0): return fake_db[idx]\n\n\ntest_r(cli, '/html/1', '&lt;body&gt;\\n  &lt;h4&gt;Next is 2.&lt;/h4&gt;\\n&lt;/body&gt;\\n', hx=True)\ntest_r(cli, '/static/foo/jph.ico', 'Getting jph.ico from /foo/')\ntest_r(cli, '/models/alexnet', 'alexnet')\ntest_r(cli, '/files/foo', 'foo.txt')\ntest_r(cli, '/items/?idx=1', '{\"name\":\"Bar\"}')\ntest_r(cli, '/items/', '{\"name\":\"Foo\"}')\nassert cli.get('/items/?idx=g').status_code==404\n\n\n@app.get(\"/booly/\")\ndef _(coming:bool=True): return 'Coming' if coming else 'Not coming'\n\n@app.get(\"/datie/\")\ndef _(d:date): return d\n\n@app.get(\"/ua\")\nasync def _(user_agent:str): return user_agent\n\n@app.get(\"/hxtest\")\ndef _(htmx): return htmx.request\n\n@app.get(\"/hxtest2\")\ndef _(foo:HtmxHeaders, req): return foo.request\n\n@app.get(\"/app\")\ndef _(app): return app.chk\n\n@app.get(\"/app2\")\ndef _(foo:FastHTML): return foo.chk,HttpHeader(\"mykey\", \"myval\")\n\n\ntest_r(cli, '/booly/?coming=true', 'Coming')\ntest_r(cli, '/booly/?coming=no', 'Not coming')\ndate_str = \"17th of May, 2024, 2p\"\ntest_r(cli, f'/datie/?d={date_str}', '2024-05-17 14:00:00')\ntest_r(cli, '/ua', 'FastHTML', headers={'User-Agent':'FastHTML'})\ntest_r(cli, '/hxtest' , '1', headers={'HX-Request':'1'})\ntest_r(cli, '/hxtest2', '1', headers={'HX-Request':'1'})\ntest_r(cli, '/app' , 'foo')\n\n\nr = cli.get('/app2', **hxhdr)\ntest_eq(r.text, 'foo\\n')\ntest_eq(r.headers['mykey'], 'myval')\n\n\n@app.post('/profile/me')\ndef profile_update(username: str): return username\n\ntest_r(cli, '/profile/me', 'Alexis', 'post', data={'username' : 'Alexis'})\ntest_r(cli, '/profile/me', 'Missing required field: username', 'post', data={})\n\n\n# Example post request with parameter that has a default value\n@app.post('/pet/dog')\ndef pet_dog(dogname: str = None): return dogname\n\n# Working post request with optional parameter\ntest_r(cli, '/pet/dog', '', 'post', data={})\n\n\n@dataclass\nclass Bodie: a:int;b:str\n\n@rt(\"/bodie/{nm}\")\ndef post(nm:str, data:Bodie):\n    res = asdict(data)\n    res['nm'] = nm\n    return res\n\n@app.post(\"/bodied/\")\ndef bodied(data:dict): return data\n\nnt = namedtuple('Bodient', ['a','b'])\n\n@app.post(\"/bodient/\")\ndef bodient(data:nt): return data._asdict()\n\nclass BodieTD(TypedDict): a:int;b:str='foo'\n\n@app.post(\"/bodietd/\")\ndef bodient(data:BodieTD): return data\n\nclass Bodie2:\n    a:int|None; b:str\n    def __init__(self, a, b='foo'): store_attr()\n\n@app.post(\"/bodie2/\")\ndef bodie(d:Bodie2): return f\"a: {d.a}; b: {d.b}\"\n\n\nd = dict(a=1, b='foo')\n\ntest_r(cli, '/bodie/me', '{\"a\":1,\"b\":\"foo\",\"nm\":\"me\"}', 'post', data=dict(a=1, b='foo', nm='me'))\ntest_r(cli, '/bodied/', '{\"a\":\"1\",\"b\":\"foo\"}', 'post', data=d)\ntest_r(cli, '/bodie2/', 'a: 1; b: foo', 'post', data={'a':1})\ntest_r(cli, '/bodient/', '{\"a\":\"1\",\"b\":\"foo\"}', 'post', data=d)\ntest_r(cli, '/bodietd/', '{\"a\":1,\"b\":\"foo\"}', 'post', data=d)\n\n\n@rt(\"/setcookie\")\ndef get(req): return cookie('now', datetime.now())\n\n@rt(\"/getcookie\")\ndef get(now:date): return f'Cookie was set at time {now.time()}'\n\n\nprint(cli.get('/setcookie').text)\ntime.sleep(0.01)\ncli.get('/getcookie').text\n\n\n\n\n'Cookie was set at time 20:06:04.721960'\n\n\n\n@rt(\"/setsess\")\ndef get(sess):\n    now = datetime.now()\n    sess['noo'] = str(now)\n    return f'Set to {now}'\n\n@rt(\"/getsess\")\ndef get(noo:date): return f'Session time: {noo.time()}'\n\n\nprint(cli.get('/setsess').text)\ntime.sleep(0.01)\ncli.get('/getsess').text\n\nSet to 2024-07-31 20:06:04.767568\n\n\n'Session time: 20:06:04.767568'\n\n\n\n@rt(\"/upload\")\nasync def post(uploadfile:str): return (await uploadfile.read()).decode()\n\nfn = '../../CHANGELOG.md'\ndata = {'message': 'Hello, world!'}\nwith open(fn, 'rb') as f:\n    print(cli.post('/upload', files={'uploadfile': f}, data=data).text[:80])\n\n# Release notes\n\n&lt;!-- do not remove --&gt;\n\n## 0.2.1\n\n\n### Bugs Squashed\n\n- railway\n\n\n\nfrom fasthtml.authmw import user_pwd_auth\n\n\nauth = user_pwd_auth(testuser='spycraft')\napp,cli,rt = get_cli(FastHTML(middleware=[auth]))\n\n@rt(\"/locked\")\ndef get(auth): return 'Hello, ' + auth\n\ntest_eq(cli.get('/locked').text, 'not authenticated')\ntest_eq(cli.get('/locked', auth=(\"testuser\",\"spycraft\")).text, 'Hello, testuser')\n\n\nhdrs, routes = app.router.hdrs, app.routes\n\n\nfrom fasthtml.live_reload import FastHTMLWithLiveReload\n\n\napp,cli,rt = get_cli(FastHTMLWithLiveReload())\n\n@rt(\"/hi\")\ndef get(): return 'Hi there'\n\ntest_eq(cli.get('/hi').text, \"Hi there\")\n\nlr_hdrs, lr_routes = app.router.hdrs, app.routes\ntest_eq(len(lr_hdrs), len(hdrs)+1)\nassert app.LIVE_RELOAD_HEADER in lr_hdrs\ntest_eq(len(lr_routes), len(routes)+1)\nassert app.LIVE_RELOAD_ROUTE in lr_routes",
+    "crumbs": [
+      "Home",
+      "Source",
+      "Core"
+    ]
+  },
+  {
+    "objectID": "api/cli.html",
+    "href": "api/cli.html",
+    "title": "Command Line Tools",
+    "section": "",
+    "text": "source\n\nrailway_link\n\n railway_link ()\n\nLink the current directory to the current project’s Railway service\n\nsource\n\n\nrailway_deploy\n\n railway_deploy (name:str, mount:&lt;function bool_arg&gt;=True)\n\nDeploy a FastHTML app to Railway\n\n\n\n\nType\nDefault\nDetails\n\n\n\n\nname\nstr\n\nThe project name to deploy\n\n\nmount\nbool_arg\nTrue\nCreate a mounted volume at /app/data?",
+    "crumbs": [
+      "Home",
+      "Source",
+      "Command Line Tools"
+    ]
+  },
+  {
+    "objectID": "ref/live_reload.html",
+    "href": "ref/live_reload.html",
+    "title": "Live Reloading",
+    "section": "",
+    "text": "When building your app it can be useful to view your changes in a web browser as you make them. FastHTML supports live reloading which means that it watches for any changes to your code and automatically refreshes the webpage in your browser.\nTo enable live reloading simply replace FastHTML in your app with FastHTMLWithLiveReload.\nThen in your terminal run uvicorn with reloading enabled.\n⚠️ Gotchas - A reload is only triggered when you save your changes. - FastHTMLWithLiveReload should only be used during development. - If your app spans multiple directories you might need to use the --reload-dir flag to watch all files in each directory. See the uvicorn docs for more info.",
+    "crumbs": [
+      "Home",
+      "Reference",
+      "Live Reloading"
+    ]
+  },
+  {
+    "objectID": "ref/live_reload.html#live-reloading-with-fast_app",
+    "href": "ref/live_reload.html#live-reloading-with-fast_app",
+    "title": "Live Reloading",
+    "section": "Live reloading with fast_app",
+    "text": "Live reloading with fast_app\nIn development the fast_app function provides the same functionality. It instantiates the FastHTMLWithLiveReload class if you pass live=True:\n\n\nmain.py\n\nfrom fasthtml.common import *\n\n1app, rt = fast_app(live=True)\n\n2serve()\n\n\n1\n\nfast_app() instantiates the FastHTMLWithLiveReload class.\n\n2\n\nserve() is a wrapper around a uvicorn call.\n\n\nTo run main.py in live reload mode, just do python main.py. We recommend turning off live reload when deploying your app to production.",
+    "crumbs": [
+      "Home",
+      "Reference",
+      "Live Reloading"
+    ]
+  },
+  {
+    "objectID": "tutorials/deployment.html",
+    "href": "tutorials/deployment.html",
+    "title": "Deploying FastHTML Apps",
+    "section": "",
+    "text": "FastHTML apps can be deployed to a number of platforms. Below are a few suggested options, with more on the way.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "Deploying FastHTML Apps"
+    ]
+  },
+  {
+    "objectID": "tutorials/deployment.html#deploying-to-railway",
+    "href": "tutorials/deployment.html#deploying-to-railway",
+    "title": "Deploying FastHTML Apps",
+    "section": "Deploying to Railway",
+    "text": "Deploying to Railway\nTo deploy to railway, you need to have a Railway account and the Railway CLI installed.\n\nCreate a Railway account at railway.app\nInstall the Railway CLI for your operating system.\nRun railway login to log in to your Railway account.\n\nNext, navigate to the directory containing your FastHTML app and run the following command:\nfh_railway_deploy &lt;app-name&gt;\n\n\n\n\n\n\nNote\n\n\n\nYour app’s entry point must be located in a main.py file for this to work.\n\n\nfh_railway_deploy runs the following commands behind the scenes for you:\nrailway init -n &lt;app-name&gt;\nrailway up -c\nrailway domain\nrailway link ...\nrailway volume add -m /app/data \nIt handles automatically linking your current app to a railway project, setting up all the environment variables such as the port to listen on and setting up a requirements.txt if you haven’t one already.\n\nCustomizing your Domain Name\nRailway automatically assigns your website a unique domain name such as quickdraw-production.up.railway.app. However, if you want to use your own that you’ve purchased through services like GoDaddy or Squarespace Domains and have users be able to navigate to your site using that domain, you’ll need to configure it both in your domain registration service and in Railway. Railway has put together a nice tutorial for setting it up here.\n\n\n\n\n\n\nNote\n\n\n\nMake sure to notice the difference between setting up a regular domain and a subdomain. Regular domains don’t have any prefixes before the main site name such as example.com and is setup differently from a subdomain which might look like subdomain.example.com. Make sure to follow your domain registration service’s documentation on how to set these types up.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "Deploying FastHTML Apps"
+    ]
+  },
+  {
+    "objectID": "tutorials/deployment.html#unsupported-platforms",
+    "href": "tutorials/deployment.html#unsupported-platforms",
+    "title": "Deploying FastHTML Apps",
+    "section": "Unsupported platforms",
+    "text": "Unsupported platforms\n\nApache\nAt this time the Apache HTTP Server doesn’t support ASGI deployments, which includes FastHTML. We suggest instead running uvicorn behind nginx.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "Deploying FastHTML Apps"
+    ]
+  },
+  {
+    "objectID": "tutorials/index.html",
+    "href": "tutorials/index.html",
+    "title": "Tutorials",
+    "section": "",
+    "text": "Click through to any of these tutorials to get started with nbdev’s features.\n\n\n\n\n\n\n\n\n\nTitle\n\n\nDescription\n\n\n\n\n\n\nFastHTML By Example\n\n\nAn introduction to FastHTML from the group up, with four complete examples\n\n\n\n\nWeb Devs Quickstart\n\n\nA fast introduction to FastHTML for experienced web developers.\n\n\n\n\nBYO Blog\n\n\nLearn the foundations of FastHTML by creating your own blogging system from scratch.\n\n\n\n\nJS App Walkthrough\n\n\nHow to build a website with custom JavaScript in FastHTML step-by-step\n\n\n\n\nDeploying FastHTML Apps\n\n\nThis page provides an introduction to deploying FastHTML apps.\n\n\n\n\n\nNo matching items",
+    "crumbs": [
+      "Home",
+      "Tutorials"
+    ]
+  },
+  {
+    "objectID": "tutorials/tutorial_for_web_devs.html",
+    "href": "tutorials/tutorial_for_web_devs.html",
+    "title": "BYO Blog",
+    "section": "",
+    "text": "Caution\n\n\n\nThis document is a work in progress.\nIn this tutorial we’re going to write a blog by example. Blogs are a good way to learn a web framework as they start simple yet can get surprisingly sophistated. The wikipedia definition of a blog is “an informational website consisting of discrete, often informal diary-style text entries (posts) informal diary-style text entries (posts)”, which means we need to provide these basic features:\nWe’ll also add in these features, so the blog can become a working site:",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "BYO Blog"
+    ]
+  },
+  {
+    "objectID": "tutorials/tutorial_for_web_devs.html#how-to-best-use-this-tutorial",
+    "href": "tutorials/tutorial_for_web_devs.html#how-to-best-use-this-tutorial",
+    "title": "BYO Blog",
+    "section": "How to best use this tutorial",
+    "text": "How to best use this tutorial\nWe could copy/paste every code example in sequence and have a finished blog at the end. However, it’s debatable how much we will learn through the copy/paste method. We’re not saying its impossible to learn through copy/paste, we’re just saying it’s not that of an efficient way to learn. It’s analogous to learning how to play a musical instrument or sport or video game by watching other people do it - you can learn some but its not the same as doing.\nA better approach is to type out every line of code in this tutorial. This forces us to run the code through our brains, giving us actual practice in how to write FastHTML and Pythoncode and forcing us to debug our own mistakes. In some cases we’ll repeat similar tasks - a key component in acheiving mastery in anything. Coming back to the instrument/sport/video game analogy, it’s exactly like actually practicing an instrument, sport, or video game. Through practice and repition we eventually acheive mastery.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "BYO Blog"
+    ]
+  },
+  {
+    "objectID": "tutorials/tutorial_for_web_devs.html#installing-fasthtml",
+    "href": "tutorials/tutorial_for_web_devs.html#installing-fasthtml",
+    "title": "BYO Blog",
+    "section": "Installing FastHTML",
+    "text": "Installing FastHTML\nFastHTML is just Python. Installation is often done with pip:\npip install python-fasthtml",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "BYO Blog"
+    ]
+  },
+  {
+    "objectID": "tutorials/tutorial_for_web_devs.html#a-minimal-fasthtml-app",
+    "href": "tutorials/tutorial_for_web_devs.html#a-minimal-fasthtml-app",
+    "title": "BYO Blog",
+    "section": "A minimal FastHTML app",
+    "text": "A minimal FastHTML app\nFirst, create the directory for our project using Python’s pathlib module:\nimport pathlib\npathlib.Path('blog-system').mkdir()\nNow that we have our directory, let’s create a minimal FastHTML site in it.\n\n\nblog-system/minimal.py\n\nfrom fasthtml.common import * \n\napp, rt = fast_app()  \n\n@rt(\"/\") \ndef get():\n\n    return Titled(\"FastHTML\", P(\"Let's do this!\")) \n\nserve()\n\nRun that with python minimal.py and you should get something like this:\npython minimal.py \nLink: http://localhost:5001\nINFO:     Will watch for changes in these directories: ['/Users/pydanny/projects/blog-system']\nINFO:     Uvicorn running on http://0.0.0.0:5001 (Press CTRL+C to quit)\nINFO:     Started reloader process [46572] using WatchFiles\nINFO:     Started server process [46576]\nINFO:     Waiting for application startup.\nINFO:     Application startup complete.\nConfirm FastHTML is running by opening your web browser to 127.0.0.1:5001. You should see something like the image below:\n\n\n\n\n\n\n\nWhat about the import *?\n\n\n\nFor those worried about the use of import * rather than a PEP8-style declared namespace, understand that __all__ is defined in FastHTML’s common module. That means that only the symbols (functions, classes, and other things) the framework wants us to have will be brought into our own code via import *. Read importing from a package) for more information.\nNevertheless, if we want to use a defined namespace we can do so. Here’s an example:\nfrom fasthtml import common as fh\n\n\napp, rt = fh.fast_app()  \n\n@rt(\"/\") \ndef get():\n    return fh.Titled(\"FastHTML\", fh.P(\"Let's do this!\")) \n\nfh.serve()",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "BYO Blog"
+    ]
+  },
+  {
+    "objectID": "tutorials/tutorial_for_web_devs.html#looking-more-closely-at-our-app",
+    "href": "tutorials/tutorial_for_web_devs.html#looking-more-closely-at-our-app",
+    "title": "BYO Blog",
+    "section": "Looking more closely at our app",
+    "text": "Looking more closely at our app\nLet’s look more closely at our application. Every line is packed with powerful features of FastHTML:\n\n\nblog-system/minimal.py\n\n1from fasthtml.common import *\n\n2app, rt = fast_app()\n\n3@rt(\"/\")\n4def get():\n5    return Titled(\"FastHTML\", P(\"Let's do this!\"))\n\n6serve()\n\n\n1\n\nThe top level namespace of Fast HTML (fasthtml.common) contains everything we need from FastHTML to build applications. A carefully-curated set of FastHTML functions and other Python objects is brought into our global namespace for convenience.\n\n2\n\nWe instantiate a FastHTML app with the fast_app() utility function. This provides a number of really useful defaults that we’ll modify or take advantage of later in the tutorial.\n\n3\n\nWe use the rt() decorator to tell FastHTML what to return when a user visits / in their browser.\n\n4\n\nWe connect this route to HTTP GET requests by defining a view function called get().\n\n5\n\nA tree of Python function calls that return all the HTML required to write a properly formed web page. You’ll soon see the power of this approach.\n\n6\n\nThe serve() utility configures and runs FastHTML using a library called uvicorn. Any changes to this module will be reloaded into the browser.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "BYO Blog"
+    ]
+  },
+  {
+    "objectID": "tutorials/tutorial_for_web_devs.html#adding-dynamic-content-to-our-minimal-app",
+    "href": "tutorials/tutorial_for_web_devs.html#adding-dynamic-content-to-our-minimal-app",
+    "title": "BYO Blog",
+    "section": "Adding dynamic content to our minimal app",
+    "text": "Adding dynamic content to our minimal app\nOur page is great, but it actually do that much. Let’s add a randomized list of letters to the page. Every time the page reloads, a new list of varying length will be generated.\n\n\nblog-system/random_letters.py\n\nfrom fasthtml.common import *\n1import string, random\n\napp, rt = fast_app()\n\n@rt(\"/\")\ndef get():\n2    letters = random.choices(string.ascii_uppercase, k=random.randint(5, 20))\n3    items = [Li(c) for c in letters]\n    return Titled(\"Random lists of letters\",\n4        Ul(*items)\n    ) \n\nserve()\n\n\n1\n\nThe string and random libraries are part of Python’s standard library\n\n2\n\nWe these libraries to generate a random length list of random letters called letters\n\n3\n\nUsing letters as the base we use list comprehension to generate a list of Li ft display components, each with their own letter and save that to the variable items\n\n4\n\nInside a call to the Ul() ft component we use Python’s *args special syntax on the items variable. Therefore *list is treated not as one argument but rather a set of them.\n\n\nWhen this is run, it will generate something like this with a different random list of letters for each page load:",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "BYO Blog"
+    ]
+  },
+  {
+    "objectID": "tutorials/tutorial_for_web_devs.html#storing-the-articles",
+    "href": "tutorials/tutorial_for_web_devs.html#storing-the-articles",
+    "title": "BYO Blog",
+    "section": "Storing the articles",
+    "text": "Storing the articles\nThe most basic component of a blog is a series of articles sorted by date authored. Rather than a database we’re going to use our computer’s harddrive to store a set of markdown files in a directory within our blog called posts. First, let’s create the directory and some test files we can use to search for:\n\n# Create some dummy posts\nimport pathlib\npathlib.Path(\"posts\").mkdir(exist_ok=True)\nfor i in range(10):\n    pathlib.Path(f\"posts/article_{i}.md\").write_text(f\"This is article {i}\")\n\nSearching for these files can be done with pathlib.\n\nimport pathlib\nfor filename in pathlib.Path(\"posts\").rglob(\"*.md\"):\n    print(filename)\n\nposts/article_5.md\nposts/article_1.md\nposts/article_0.md\nposts/article_4.md\nposts/article_3.md\nposts/article_7.md\nposts/article_6.md\nposts/article_2.md\nposts/article_9.md\nposts/article_8.md\n\n\n\n\n\n\n\n\nTip\n\n\n\nPython’s pathlib library is quite useful and makes file search and manipulation much easier. There’s many uses for it and is compatible across operating systems.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "BYO Blog"
+    ]
+  },
+  {
+    "objectID": "tutorials/tutorial_for_web_devs.html#creating-the-blog-home-page",
+    "href": "tutorials/tutorial_for_web_devs.html#creating-the-blog-home-page",
+    "title": "BYO Blog",
+    "section": "Creating the blog home page",
+    "text": "Creating the blog home page\nWe now have enough tools that we can create the home page. Let’s create a new Python file and write out our simple view to list the articles in our blog.\n\n\nblog-system/main.py\n\nfrom fasthtml.common import *\nimport pathlib\n\napp, rt = fast_app()\n\n@rt(\"/\")\ndef get():\n    items = [Li(fname) for fname in pathlib.Path(\"posts\").rglob(\"*.md\")]    \n    return Titled(\"My Blog\",\n        Ul(*items)\n    ) \n\nserve()",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "BYO Blog"
+    ]
+  },
+  {
+    "objectID": "incomplete/oauth.html",
+    "href": "incomplete/oauth.html",
+    "title": "OAuth",
+    "section": "",
+    "text": "NB: This is an incomplete draft of an OAuth framework for FastHTML. It’s not working yet.\n\n\nfrom IPython.display import Markdown\n\n\nex_path = Path(f'../examples')\n# secrets = (ex_path/'goog_secret.json').read_json()\nsecrets = parse_env(fn=ex_path/'gh_secret.env')\nhost,port = 'localhost',8000\nredirect_uri = f\"http://{host}:{port}/redirect\"\n\n\nsource\n\nGoogleAppClient\n\n GoogleAppClient (client_id, client_secret, redirect_uri=None,\n                  redirect_uris=None, code=None, scope=None, **kwargs)\n\nA WebApplicationClient for Google oauth2\n\nsource\n\n\nGitHubAppClient\n\n GitHubAppClient (client_id, client_secret, redirect_uri, code=None,\n                  scope=None, **kwargs)\n\nA WebApplicationClient for GitHub oauth2\n\nsource\n\n\nWebApplicationClient.login_link\n\n WebApplicationClient.login_link (scope=None)\n\nGet a login link for this client\n\n# client = GoogleAppClient(**secrets['web'], redirect_uri=redirect_uri)\nclient = GitHubAppClient(**secrets, redirect_uri=redirect_uri)\nlogin_link = client.login_link()\n\n\nt = recv_once(host, port)\nMarkdown(f'[login]({login_link})')\n\nlogin\n\n\n\nsource\n\n\nretr_code\n\n retr_code (ret)\n\nParse a request to get the code – mainly used for testing\n\ncode = retr_code(t.result)\ncode\n\n'e0b01caa1aa03fa8cfa7'\n\n\n\nsource\n\n\n_AppClient.parse_response\n\n _AppClient.parse_response (code)\n\nGet the token from the oauth2 server response\n\nsource\n\n\n_AppClient.get_info\n\n _AppClient.get_info ()\n\nGet the info for authenticated user\n\nsource\n\n\n_AppClient.retr_info\n\n _AppClient.retr_info (code)\n\nCombines parse_response and get_info\n\nsource\n\n\n_AppClient.retr_id\n\n _AppClient.retr_id (code)\n\nCall retr_info and then return id/subcriber value\n\nclient.retr_id(code)\n\n346999"
+  },
+  {
+    "objectID": "explains/explaining_xt_components.html",
+    "href": "explains/explaining_xt_components.html",
+    "title": "ft Components",
+    "section": "",
+    "text": "In a nutshell, ft components turn Python objects into HTML.\nft, or ‘FastTags’, are the display components of FastHTML. In fact, the word “components” in the context of FastHTML is often synonymous with ft.\nFor example, when we look at a FastHTML app, in particular the views, as well as various functions and other objects, we see something like the code snippet below. It’s the return statement that we want to pay attention to:\nfrom fasthtml.common import *\n\ndef example():\n    # The code below is a set of ft components\n    return Div(\n            H1(\"FastHTML APP\"),\n            P(\"Let's do this\"),\n            cls=\"go\"\n    )\nLet’s go ahead and call our function and print the result:\nexample()\n\n&lt;div class=\"go\"&gt;\n  &lt;h1&gt;FastHTML APP&lt;/h1&gt;\n  &lt;p&gt;Let&#x27;s do this&lt;/p&gt;\n&lt;/div&gt;\nAs you can see, when returned to the user from a Python callable, like a function, the ft components are transformed into their string representations of XML or XML-like content such as HTML. More concisely, ft turns Python objects into HTML.\nNow that we know what ft components look and behave like we can begin to understand them. At their most fundamental level, ft components:",
+    "crumbs": [
+      "Home",
+      "Explanations",
+      "**ft** Components"
+    ]
+  },
+  {
+    "objectID": "explains/explaining_xt_components.html#how-fasthtml-names-ft-components",
+    "href": "explains/explaining_xt_components.html#how-fasthtml-names-ft-components",
+    "title": "ft Components",
+    "section": "How FastHTML names ft components",
+    "text": "How FastHTML names ft components\nWhen it comes to naming ft components, FastHTML appears to break from PEP8. Specifically, PEP8 specifies that when naming variables, functions and instantiated classes we use the snake_case_pattern. That is to say, lowercase with words separated by underscores. However, FastHTML uses PascalCase for ft components.\nThere’s a couple of reasons for this:\n\nft components can be made from any callable type, so adhering to any one pattern doesn’t make much sense\nIt makes for easier reading of FastHTML code, as anything that is PascalCase is probably an ft component",
+    "crumbs": [
+      "Home",
+      "Explanations",
+      "**ft** Components"
+    ]
+  },
+  {
+    "objectID": "explains/explaining_xt_components.html#default-ft-components",
+    "href": "explains/explaining_xt_components.html#default-ft-components",
+    "title": "ft Components",
+    "section": "Default ft components",
+    "text": "Default ft components\nFastHTML has over 150 ft components designed to accelerate web development. Most of these mirror HTML tags such as &lt;div&gt;, &lt;p&gt;, &lt;a&gt;, &lt;title&gt;, and more. However, there are some extra tags added, including:\n\nTitled, a combination of the Title() and H1() tags\nSocials, renders popular social media tags",
+    "crumbs": [
+      "Home",
+      "Explanations",
+      "**ft** Components"
+    ]
+  },
+  {
+    "objectID": "explains/explaining_xt_components.html#the-fasthtml.ft-namespace",
+    "href": "explains/explaining_xt_components.html#the-fasthtml.ft-namespace",
+    "title": "ft Components",
+    "section": "The fasthtml.ft Namespace",
+    "text": "The fasthtml.ft Namespace\nSome people prefer to write code using namespaces while adhering to PEP8. If that’s a preference, projects can be coded using the fasthtml.ft namespace.\n\nfrom fasthtml import ft\n\nft.Ul(\n    ft.Li(\"one\"),\n    ft.Li(\"two\"),\n    ft.Li(\"three\")\n)\n\n&lt;ul&gt;\n  &lt;li&gt;one&lt;/li&gt;\n  &lt;li&gt;two&lt;/li&gt;\n  &lt;li&gt;three&lt;/li&gt;\n&lt;/ul&gt;",
+    "crumbs": [
+      "Home",
+      "Explanations",
+      "**ft** Components"
+    ]
+  },
+  {
+    "objectID": "explains/explaining_xt_components.html#attributes",
+    "href": "explains/explaining_xt_components.html#attributes",
+    "title": "ft Components",
+    "section": "Attributes",
+    "text": "Attributes\nThis example demonstrates many important things to know about how ft components handle attributes.\n#| echo: False\n1Label(\n    \"Choose an option\", \n    Select(\n2        Option(\"one\", value=\"1\", selected=True),\n3        Option(\"two\", value=\"2\", selected=False),\n4        Option(\"three\", value=3),\n5        cls=\"selector\",\n6        _id=\"counter\",\n7        **{'@click':\"alert('Clicked');\"},\n    ),\n8    _for=\"counter\",\n)\n\n1\n\nLine 1 demonstrates that FastHTML appreciates Labels surrounding their fields.\n\n2\n\nOn line 4, we can see that attributes set to the boolean value of True are rendered with just the name of the attribute\n\n3\n\nOn line 5, we demonstration that attributes set to the boolean value of False do not appear in the rendered output\n\n4\n\nOn line 6 is an example of how integers and other non-string values are in the rendered output are converted to strings\n\n5\n\nLine 7 is where we set the HTML class using the cls argument. We use cls here as class is a reserved word in Python. During the rendering process this will be converted to the word “class”\n\n6\n\nLine 9 demonstrates that any named argument passed into an ft component will have the leading underscore stripped away before rendering. Useful for handling reserved words in Python\n\n7\n\nOn line 10 we have an attribute name that cannot be represented as a python variable. We can use an unpacked dict in these cases to represent these values.\n\n8\n\nThe use of _for on line 12 is another demonstrated of an argument having the leading underscore stripped during render. We can also use fr as that will be expanded to for.\n\n\nThis renders the following HTML snippet:\n\nLabel(\n    \"Choose an option\", \n    Select(\n        Option(\"one\", value=\"1\", selected=True),\n        Option(\"two\", value=\"2\", selected=False),\n        Option(\"three\", value=3),  # &lt;4&gt;,\n        cls=\"selector\",\n        _id=\"counter\",\n        **{'@click':\"alert('Clicked');\"},\n    ),\n    _for=\"counter\",\n)\n\n&lt;label for=\"counter\"&gt;\nChoose an option\n  &lt;select id=\"counter\" @click=\"alert(&#x27;Clicked&#x27;);\" class=\"selector\" name=\"counter\"&gt;\n    &lt;option value=\"1\" selected&gt;one&lt;/option&gt;\n    &lt;option value=\"2\" &gt;two&lt;/option&gt;\n    &lt;option value=\"3\"&gt;three&lt;/option&gt;\n  &lt;/select&gt;\n&lt;/label&gt;",
+    "crumbs": [
+      "Home",
+      "Explanations",
+      "**ft** Components"
+    ]
+  },
+  {
+    "objectID": "explains/routes.html",
+    "href": "explains/routes.html",
+    "title": "Routes",
+    "section": "",
+    "text": "Behaviour in FastHTML apps is defined by routes. The syntax is largely the same as the wonderful FastAPI (which is what you should be using instead of this if you’re creating a JSON service. FastHTML is for mainly for making HTML web apps, not APIs).\nNote that you need to include the types of your parameters, so that FastHTML knows what to pass to your function. Here, we’re just expecting a string:\nfrom fasthtml.common import *\napp = FastHTML()\n\n@app.get('/user/{nm}')\ndef get_nm(nm:str): return f\"Good day to you, {nm}!\"\nNormally you’d save this into a file such as main.py, and then run it in uvicorn using:\nHowever, for testing, we can use Starlette’s TestClient to try it out:\nfrom starlette.testclient import TestClient\nclient = TestClient(app)\nr = client.get('/user/Jeremy')\nr\n\n&lt;Response [200 OK]&gt;\nTestClient uses httpx behind the scenes, so it returns a httpx.Response, which has a text attribute with our response body:\nr.text\n\n'Good day to you, Jeremy!'\nIn the previous example, the function name (get_nm) didn’t actually matter – we could have just called it _, for instance, since we never actually call it directly. It’s just called through HTTP. In fact, we often do call our functions _ when using this style of route, since that’s one less thing we have to worry about naming.\nAn alternative approach to creating a route is to use app.route instead, in which case you make the function name the HTTP method you want. Since this is such a common pattern, you might like to give a shorter name to app.route – we normally use rt:\nrt = app.route\n\n@rt('/')\ndef post(): return \"Going postal!\"\n\nclient.post('/').text\n\n'Going postal!'",
+    "crumbs": [
+      "Home",
+      "Explanations",
+      "Routes"
+    ]
+  },
+  {
+    "objectID": "explains/routes.html#unfinished",
+    "href": "explains/routes.html#unfinished",
+    "title": "Routes",
+    "section": "Unfinished",
+    "text": "Unfinished\nWe haven’t yet written complete documentation of all of FastHTML’s routing features – until we add that, the best place to see all the available functionality is to look over the tests",
+    "crumbs": [
+      "Home",
+      "Explanations",
+      "Routes"
+    ]
+  },
+  {
+    "objectID": "tutorials/e2e.html",
+    "href": "tutorials/e2e.html",
+    "title": "JS App Walkthrough",
+    "section": "",
+    "text": "You’ll need the following software to complete the tutorial, read on for specific installation instructions:\n\nPython\nA Python package manager such as pip (which normally comes with Python) or uv\nFastHTML\nWeb browser\nRailway.app account\n\nIf you haven’t worked with Python before, we recommend getting started with Miniconda.\nNote that you will only need to follow the steps in the installation section once per environment. If you create a new repo, you won’t need to redo these.\n\n\nFor Mac, Windows and Linux, enter:\npip install python-fasthtml",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "JS App Walkthrough"
+    ]
+  },
+  {
+    "objectID": "tutorials/e2e.html#installation",
+    "href": "tutorials/e2e.html#installation",
+    "title": "JS App Walkthrough",
+    "section": "",
+    "text": "You’ll need the following software to complete the tutorial, read on for specific installation instructions:\n\nPython\nA Python package manager such as pip (which normally comes with Python) or uv\nFastHTML\nWeb browser\nRailway.app account\n\nIf you haven’t worked with Python before, we recommend getting started with Miniconda.\nNote that you will only need to follow the steps in the installation section once per environment. If you create a new repo, you won’t need to redo these.\n\n\nFor Mac, Windows and Linux, enter:\npip install python-fasthtml",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "JS App Walkthrough"
+    ]
+  },
+  {
+    "objectID": "tutorials/e2e.html#first-steps",
+    "href": "tutorials/e2e.html#first-steps",
+    "title": "JS App Walkthrough",
+    "section": "First steps",
+    "text": "First steps\nBy the end of this section you’ll have your own FastHTML website with tests deployed to railway.app.\n\nCreate a hello world\nGet a fresh folder to put all of your files for your new project in and in it place a single main.py with the following code:\n\n\nmain.py\n\nfrom fasthtml.common import *\n\napp = FastHTML()\nrt = app.route\n\n@rt('/')\ndef get():\n    return 'Hello, world!'\n\nserve()\n\nFinally, run python main.py in your terminal and open your browser to the linked printed.\n\n\nQuickDraw: A FastHTML Adventure 🎨✨\nThe end website of this tutorial will be QuickDraw, a real-time collaborative drawing app using FastHTML. Here is what the final site will look like:\n\n\n\nQuickDraw\n\n\n\nDrawing Rooms\nDrawing rooms are the core concept of our application. Each room represents a separate drawing space where a user can let there inner Picasso shine. Here’s a detailed breakdown:\n\nRoom Creation and Storage\n\n\n\nmain.py\n\ndb = database('data/drawapp.db')\nrooms = db.t.rooms\nif rooms not in db.t:\n    rooms.create(id=int, name=str, created_at=str, pk='id')\nRoom = rooms.dataclass()\n\n@patch\ndef __ft__(self:Room):\n    return Li(A(self.name, href=f\"/rooms/{self.id}\"))\n\nOr you can use our fast_app function to create a FastHTML app with a SQLite database and dataclass in one line:\n\n\nmain.py\n\ndef render(room):\n    return Li(A(room.name, href=f\"/rooms/{room.id}\"))\n\napp,rt,rooms,Room = fast_app('data/drawapp.db', render=render, id=int, name=str, created_at=str, pk='id')\n\nWe are specifying a render function to convert our dataclass into HTML, which is the same as extending the __ft__ method from the patch decorator we used before. We will use this method for the rest of the tutorial since it is a lot cleaner and easier to read.\n\nWe’re using a SQLite database (via FastLite) to store our rooms.\nEach room has an id (integer), a name (string), and a created_at timestamp (string).\nThe Room dataclass is automatically generated based on this structure.\n\n\nCreating a room\n\n\n\nmain.py\n\n@rt(\"/\")\ndef get():\n    # The 'Input' id defaults to the same as the name, so you can omit it if you wish\n    create_room = Form(Input(id=\"name\", name=\"name\", placeholder=\"New Room Name\"),\n                       Button(\"Create Room\"),\n                       hx_post=\"/rooms\", hx_target=\"#rooms-list\", hx_swap=\"afterbegin\")\n    rooms_list = Ul(*rooms(order_by='id DESC'), id='rooms-list')\n    return Titled(\"DrawCollab\", \n                  H1(\"DrawCollab\"),\n                  create_room, rooms_list)\n\n@rt(\"/rooms\")\nasync def post(room:Room):\n    room.created_at = datetime.now().isoformat()\n    return rooms.insert(room)\n\n\nWhen a user submits the “Create Room” form, this route is called.\nIt creates a new Room object, sets the creation time, and inserts it into the database.\nIt returns an HTML list item with a link to the new room, which is dynamically added to the room list on the homepage thanks to HTMX.\n\n\nLet’s give our rooms shape\n\n\n\nmain.py\n\n@rt(\"/rooms/{id}\")\nasync def get(id:int):\n    room = rooms[id]\n    return Titled(f\"Room: {room.name}\", H1(f\"Welcome to {room.name}\"), A(Button(\"Leave Room\"), href=\"/\"))\n\n\nThis route renders the interface for a specific room.\nIt fetches the room from the database and renders a title, heading, and paragraph.\n\nHere is the full code so far:\n\n\nmain.py\n\nfrom fasthtml.common import *\nfrom datetime import datetime\n\ndef render(room):\n    return Li(A(room.name, href=f\"/rooms/{room.id}\"))\n\napp,rt,rooms,Room = fast_app('data/drawapp.db', render=render, id=int, name=str, created_at=str, pk='id')\n\n@rt(\"/\")\ndef get():\n    create_room = Form(Input(id=\"name\", name=\"name\", placeholder=\"New Room Name\"),\n                       Button(\"Create Room\"),\n                       hx_post=\"/rooms\", hx_target=\"#rooms-list\", hx_swap=\"afterbegin\")\n    rooms_list = Ul(*rooms(order_by='id DESC'), id='rooms-list')\n    return Titled(\"DrawCollab\", create_room, rooms_list)\n\n@rt(\"/rooms\")\nasync def post(room:Room):\n    room.created_at = datetime.now().isoformat()\n    return rooms.insert(room)\n\n@rt(\"/rooms/{id}\")\nasync def get(id:int):\n    room = rooms[id]\n    return Titled(f\"Room: {room.name}\", H1(f\"Welcome to {room.name}\"), A(Button(\"Leave Room\"), href=\"/\"))\n\nserve()\n\nNow run python main.py in your terminal and open your browser to the linked printed. You should see a page with a form to create a new room and a list of existing rooms.\n\n\nThe Canvas - Let’s Get Drawing! 🖌️\nTime to add the actual drawing functionality. We’ll use Fabric.js for this:\n\n\nmain.py\n\n# ... (keep the previous imports and database setup)\n\n@rt(\"/rooms/{id}\")\nasync def get(id:int):\n    room = rooms[id]\n    canvas = Canvas(id=\"canvas\", width=\"800\", height=\"600\")\n    color_picker = Input(type=\"color\", id=\"color-picker\", value=\"#3CDD8C\")\n    brush_size = Input(type=\"range\", id=\"brush-size\", min=\"1\", max=\"50\", value=\"10\")\n    \n    js = \"\"\"\n    var canvas = new fabric.Canvas('canvas');\n    canvas.isDrawingMode = true;\n    canvas.freeDrawingBrush.color = '#3CDD8C';\n    canvas.freeDrawingBrush.width = 10;\n    \n    document.getElementById('color-picker').onchange = function() {\n        canvas.freeDrawingBrush.color = this.value;\n    };\n    \n    document.getElementById('brush-size').oninput = function() {\n        canvas.freeDrawingBrush.width = parseInt(this.value, 10);\n    };\n    \"\"\"\n    \n    return Titled(f\"Room: {room.name}\",\n                  canvas,\n                  Div(color_picker, brush_size),\n                  Script(src=\"https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js\"),\n                  Script(js))\n\n# ... (keep the serve() part)\n\nNow we’ve got a drawing canvas! FastHTML makes it easy to include external libraries and add custom JavaScript.\n\n\nSaving and Loading Canvases 💾\nNow that we have a working drawing canvas, let’s add the ability to save and load drawings. We’ll modify our database schema to include a canvas_data field, and add new routes for saving and loading canvas data. Here’s how we’ll update our code:\n\nModify the database schema:\n\n\n\nmain.py\n\napp,rt,rooms,Room = fast_app('data/drawapp.db', render=render, id=int, name=str, created_at=str, canvas_data=str, pk='id')\n\n\nAdd a save button that grabs the canvas’ state and sends it to the server:\n\n\n\nmain.py\n\n@rt(\"/rooms/{id}\")\nasync def get(id:int):\n    room = rooms[id]\n    canvas = Canvas(id=\"canvas\", width=\"800\", height=\"600\")\n    color_picker = Input(type=\"color\", id=\"color-picker\", value=\"#3CDD8C\")\n    brush_size = Input(type=\"range\", id=\"brush-size\", min=\"1\", max=\"50\", value=\"10\")\n    save_button = Button(\"Save Canvas\", id=\"save-canvas\", hx_post=f\"/rooms/{id}/save\", hx_vals=\"js:{canvas_data: JSON.stringify(canvas.toJSON())}\")\n    # ... (rest of the function remains the same)\n\n\nAdd routes for saving and loading canvas data:\n\n\n\nmain.py\n\n@rt(\"/rooms/{id}/save\")\nasync def post(id:int, canvas_data:str):\n    rooms.update({'canvas_data': canvas_data}, id)\n    return \"Canvas saved successfully\"\n\n@rt(\"/rooms/{id}/load\")\nasync def get(id:int):\n    room = rooms[id]\n    return room.canvas_data if room.canvas_data else \"{}\"\n\n\nUpdate the JavaScript to load existing canvas data:\n\n\n\nmain.py\n\njs = f\"\"\"\n    var canvas = new fabric.Canvas('canvas');\n    canvas.isDrawingMode = true;\n    canvas.freeDrawingBrush.color = '#3CDD8C';\n    canvas.freeDrawingBrush.width = 10;\n    // Load existing canvas data\n    fetch(`/rooms/{id}/load`)\n    .then(response =&gt; response.json())\n    .then(data =&gt; {{\n        if (data && Object.keys(data).length &gt; 0) {{\n            canvas.loadFromJSON(data, canvas.renderAll.bind(canvas));\n        }}\n    }});\n    \n    // ... (rest of the JavaScript remains the same)\n\"\"\"\n\nWith these changes, users can now save their drawings and load them when they return to the room. The canvas data is stored as a JSON string in the database, allowing for easy serialization and deserialization. Try it out! Create a new room, make a drawing, save it, and then reload the page. You should see your drawing reappear, ready for further editing.\nHere is the completed code:\n\n\nmain.py\n\nfrom fasthtml.common import *\nfrom datetime import datetime\n\ndef render(room):\n    return Li(A(room.name, href=f\"/rooms/{room.id}\"))\n\napp,rt,rooms,Room = fast_app('data/drawapp.db', render=render, id=int, name=str, created_at=str, canvas_data=str, pk='id')\n\n@rt(\"/\")\ndef get():\n    create_room = Form(Input(id=\"name\", name=\"name\", placeholder=\"New Room Name\"),\n                       Button(\"Create Room\"),\n                       hx_post=\"/rooms\", hx_target=\"#rooms-list\", hx_swap=\"afterbegin\")\n    rooms_list = Ul(*rooms(order_by='id DESC'), id='rooms-list')\n    return Titled(\"QuickDraw\", \n                  create_room, rooms_list)\n\n@rt(\"/rooms\")\nasync def post(room:Room):\n    room.created_at = datetime.now().isoformat()\n    return rooms.insert(room)\n\n@rt(\"/rooms/{id}\")\nasync def get(id:int):\n    room = rooms[id]\n    canvas = Canvas(id=\"canvas\", width=\"800\", height=\"600\")\n    color_picker = Input(type=\"color\", id=\"color-picker\", value=\"#000000\")\n    brush_size = Input(type=\"range\", id=\"brush-size\", min=\"1\", max=\"50\", value=\"10\")\n    save_button = Button(\"Save Canvas\", id=\"save-canvas\", hx_post=f\"/rooms/{id}/save\", hx_vals=\"js:{canvas_data: JSON.stringify(canvas.toJSON())}\")\n\n    js = f\"\"\"\n    var canvas = new fabric.Canvas('canvas');\n    canvas.isDrawingMode = true;\n    canvas.freeDrawingBrush.color = '#000000';\n    canvas.freeDrawingBrush.width = 10;\n\n    // Load existing canvas data\n    fetch(`/rooms/{id}/load`)\n    .then(response =&gt; response.json())\n    .then(data =&gt; {{\n        if (data && Object.keys(data).length &gt; 0) {{\n            canvas.loadFromJSON(data, canvas.renderAll.bind(canvas));\n        }}\n    }});\n    \n    document.getElementById('color-picker').onchange = function() {{\n        canvas.freeDrawingBrush.color = this.value;\n    }};\n    \n    document.getElementById('brush-size').oninput = function() {{\n        canvas.freeDrawingBrush.width = parseInt(this.value, 10);\n    }};\n    \"\"\"\n    \n    return Titled(f\"Room: {room.name}\",\n                  A(Button(\"Leave Room\"), href=\"/\"),\n                  canvas,\n                  Div(color_picker, brush_size, save_button),\n                  Script(src=\"https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js\"),\n                  Script(js))\n\n@rt(\"/rooms/{id}/save\")\nasync def post(id:int, canvas_data:str):\n    rooms.update({'canvas_data': canvas_data}, id)\n    return \"Canvas saved successfully\"\n\n@rt(\"/rooms/{id}/load\")\nasync def get(id:int):\n    room = rooms[id]\n    return room.canvas_data if room.canvas_data else \"{}\"\n\nserve()\n\n\n\n\nDeploying to Railway\nYou can deploy your website to a number of hosting providers, for this tutorial we’ll be using Railway. To get started, make sure you create an account and install the Railway CLI. Once installed, make sure to run railway login to log in to your account.\nTo make deploying your website as easy as possible, FastHTMl comes with a built in CLI tool that will handle most of the deployment process for you. To deploy your website, run the following command in your terminal in the root directory of your project:\nfh_railway_deploy quickdraw\n\n\n\n\n\n\nNote\n\n\n\nYour app must be located in a main.py file for this to work.\n\n\n\n\nConclusion: You’re a FastHTML Artist Now! 🎨🚀\nCongratulations! You’ve just built a sleek, interactive web application using FastHTML. Let’s recap what we’ve learned:\n\nFastHTML allows you to create dynamic web apps with minimal code.\nWe used FastHTML’s routing system to handle different pages and actions.\nWe integrated with a SQLite database to store room information and canvas data.\nWe utilized Fabric.js to create an interactive drawing canvas.\nWe implemented features like color picking, brush size adjustment, and canvas saving.\nWe used HTMX for seamless, partial page updates without full reloads.\nWe learned how to deploy our FastHTML application to Railway for easy hosting.\n\nYou’ve taken your first steps into the world of FastHTML development. From here, the possibilities are endless! You could enhance the drawing app further by adding features like:\n\nImplementing different drawing tools (e.g., shapes, text)\nAdding user authentication\nCreating a gallery of saved drawings\nImplementing real-time collaborative drawing using WebSockets\n\nWhatever you choose to build next, FastHTML has got your back. Now go forth and create something awesome! Happy coding! 🖼️🚀",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "JS App Walkthrough"
+    ]
+  },
+  {
+    "objectID": "tutorials/quickstart_for_web_devs.html",
+    "href": "tutorials/quickstart_for_web_devs.html",
+    "title": "Web Devs Quickstart",
+    "section": "",
+    "text": "Note\n\n\n\nWe’re going to be adding more to this document, so check back frequently for updates.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "Web Devs Quickstart"
+    ]
+  },
+  {
+    "objectID": "tutorials/quickstart_for_web_devs.html#installation",
+    "href": "tutorials/quickstart_for_web_devs.html#installation",
+    "title": "Web Devs Quickstart",
+    "section": "Installation",
+    "text": "Installation\npip install python-fasthtml",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "Web Devs Quickstart"
+    ]
+  },
+  {
+    "objectID": "tutorials/quickstart_for_web_devs.html#a-minimal-application",
+    "href": "tutorials/quickstart_for_web_devs.html#a-minimal-application",
+    "title": "Web Devs Quickstart",
+    "section": "A Minimal Application",
+    "text": "A Minimal Application\nA minimal FastHTML application looks something like this:\n\n\nmain.py\n\n1from fasthtml.fastapp import *\n\n2app, rt = fast_app()\n\n3@rt(\"/\")\n4def get():\n5    return Titled(\"FastHTML\", P(\"Let's do this!\"))\n\n6serve()\n\n\n1\n\nWe import what we need for rapid development! A carefully-curated set of FastHTML functions and other Python objects is brought into our global namespace for convenience.\n\n2\n\nWe instantiate a FastHTML app with the fast_app() utility function. This provides a number of really useful defaults that we’ll take advantage of later in the tutorial.\n\n3\n\nWe use the rt() decorator to tell FastHTML what to return when a user visits / in their browser.\n\n4\n\nWe connect this route to HTTP GET requests by defining a view function called get().\n\n5\n\nA tree of Python function calls that return all the HTML required to write a properly formed web page. You’ll soon see the power of this approach.\n\n6\n\nThe serve() utility configures and runs FastHTML using a library called uvicorn.\n\n\nRun the code:\npython main.py\nThe terminal will look like this:\nINFO:     Uvicorn running on http://0.0.0.0:5001 (Press CTRL+C to quit)\nINFO:     Started reloader process [58058] using WatchFiles\nINFO:     Started server process [58060]\nINFO:     Waiting for application startup.\nINFO:     Application startup complete.\nConfirm FastHTML is running by opening your web browser to 127.0.0.1:5001. You should see something like the image below:\n\n\n\n\n\n\n\nNote\n\n\n\nWhile some linters and developers will complain about the wildcard import, it is by design here and perfectly safe. FastHTML is very deliberate about the objects it exports in fasthtml.common. If it bothers you, you can import the objects you need individually, though it will make the code more verbose and less readable.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "Web Devs Quickstart"
+    ]
+  },
+  {
+    "objectID": "tutorials/quickstart_for_web_devs.html#a-minimal-charting-application",
+    "href": "tutorials/quickstart_for_web_devs.html#a-minimal-charting-application",
+    "title": "Web Devs Quickstart",
+    "section": "A Minimal Charting Application",
+    "text": "A Minimal Charting Application\nThe Script function allows you to include JavaScript. You can use Python to generate parts of your JS or JSON like this:\nimport json\nfrom fasthtml.common import * \n\napp, rt = fast_app(hdrs=(Script(src=\"https://cdn.plot.ly/plotly-2.32.0.min.js\"),))\n\ndata = json.dumps({\n    \"data\": [{\"x\": [1, 2, 3, 4],\"type\": \"scatter\"},\n            {\"x\": [1, 2, 3, 4],\"y\": [16, 5, 11, 9],\"type\": \"scatter\"}],\n    \"title\": \"Plotly chart in FastHTML \",\n    \"description\": \"This is a demo dashboard\",\n    \"type\": \"scatter\"\n})\n\n\n@rt(\"/\")\ndef get():\n  return Titled(\"Chart Demo\", Div(id=\"myDiv\"),\n    Script(f\"var data = {data}; Plotly.newPlot('myDiv', data);\"))\n\nserve()",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "Web Devs Quickstart"
+    ]
+  },
+  {
+    "objectID": "tutorials/quickstart_for_web_devs.html#debug-mode",
+    "href": "tutorials/quickstart_for_web_devs.html#debug-mode",
+    "title": "Web Devs Quickstart",
+    "section": "Debug Mode",
+    "text": "Debug Mode\nWhen we can’t figure out a bug in FastHTML, we can run it in DEBUG mode. When an error is thrown, the error screen is displayed in the browser. This error setting should never be used in a deployed app.\nfrom fasthtml.fastapp import *\n\n1app, rt = fast_app(debug=True)\n\n@rt(\"/\")\ndef get():\n2    1/0\n    return Titled(\"FastHTML Error!\", P(\"Let's error!\"))\n\nserve()\n\n1\n\ndebug=True sets debug mode on.\n\n2\n\nPython throws an error when it tries to divide an integer by zero.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "Web Devs Quickstart"
+    ]
+  },
+  {
+    "objectID": "tutorials/quickstart_for_web_devs.html#routing",
+    "href": "tutorials/quickstart_for_web_devs.html#routing",
+    "title": "Web Devs Quickstart",
+    "section": "Routing",
+    "text": "Routing\nFastHTML builds upon FastAPI’s friendly decorator pattern for specifying URLs, with extra features:\n\n\nmain.py\n\nfrom fasthtml.fastapp import * \n\napp, rt = fast_app()\n\n1@rt(\"/\")\ndef get():\n  return Titled(\"FastHTML\", P(\"Let's do this!\"))\n\n2@rt(\"/hello\")\ndef get():\n  return Titled(\"Hello, world!\")\n\nserve()\n\n\n1\n\nThe “/” URL on line 5 is the home of a project. This would be accessed at 127.0.0.1:5001.\n\n2\n\n“/hello” URL on line 9 will be found by the project if the user visits 127.0.0.1:5001/hello.\n\n\n\n\n\n\n\n\nTip\n\n\n\nIt looks like get() is being defined twice, but that’s not the case. Each function decorated with rt is totally separate, and is injected into the router. We’re not calling them in the module’s namespace (locals()). Rather, we’re loading them into the routing mechanism using the rt decorator.\n\n\nYou can do more! Read on to learn what we can do to make parts of the URL dynamic.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "Web Devs Quickstart"
+    ]
+  },
+  {
+    "objectID": "tutorials/quickstart_for_web_devs.html#variables-in-urls",
+    "href": "tutorials/quickstart_for_web_devs.html#variables-in-urls",
+    "title": "Web Devs Quickstart",
+    "section": "Variables in URLs",
+    "text": "Variables in URLs\nYou can add variable sections to a URL by marking them with {variable_name}. Your function then receives the {variable_name} as a keyword argument, but only if it is the correct type. Here’s an example:\n\n\nmain.py\n\nfrom fasthtml.fastapp import * \n\napp, rt = fast_app()\n\n1@rt(\"/{name}/{age}\")\n2def get(name: str, age: int):\n3  return Titled(f\"Hello {name.title()}, age {age}\")\n\nserve()\n\n\n1\n\nWe specify two variable names, name and age.\n\n2\n\nWe define two function arguments named identically to the variables. You will note that we specify the Python types to be passed.\n\n3\n\nWe use these functions in our project.\n\n\nTry it out by going to this address: 127.0.0.1:5001/uma/5. You should get a page that says,\n\n“Hello Uma, age 5”.\n\n\nWhat happens if we enter incorrect data?\nThe 127.0.0.1:5001/uma/5 URL works because 5 is an integer. If we enter something that is not, such as 127.0.0.1:5001/uma/five, then FastHTML will return an error instead of a web page.\n\n\n\n\n\n\nFastHTML URL routing supports more complex types\n\n\n\nThe two examples we provide here use Python’s built-in str and int types, but you can use your own types, including more complex ones such as those defined by libraries like attrs, pydantic, and even sqlmodel.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "Web Devs Quickstart"
+    ]
+  },
+  {
+    "objectID": "tutorials/quickstart_for_web_devs.html#http-methods",
+    "href": "tutorials/quickstart_for_web_devs.html#http-methods",
+    "title": "Web Devs Quickstart",
+    "section": "HTTP Methods",
+    "text": "HTTP Methods\nFastHTML matches function names to HTTP methods. So far the URL routes we’ve defined have been for HTTP GET methods, the most common method for web pages.\nForm submissions often are sent as HTTP POST. When dealing with more dynamic web page designs, also known as Single Page Apps (SPA for short), the need can arise for other methods such as HTTP PUT and HTTP DELETE. The way FastHTML handles this is by changing the function name.\n\n\nmain.py\n\nfrom fasthtml.fastapp import * \n\napp, rt = fast_app()\n\n@rt(\"/\")  \n1def get():\n  return Titled(\"HTTP GET\", P(\"Handle GET\"))\n\n@rt(\"/\")  \n2def post():\n  return Titled(\"HTTP POST\", P(\"Handle POST\"))\n\nserve()\n\n\n1\n\nOn line 6 because the get() function name is used, this will handle HTTP GETs going to the / URI.\n\n2\n\nOn line 10 because the post() function name is used, this will handle HTTP POSTs going to the / URI.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "Web Devs Quickstart"
+    ]
+  },
+  {
+    "objectID": "tutorials/quickstart_for_web_devs.html#css-files-and-inline-styles",
+    "href": "tutorials/quickstart_for_web_devs.html#css-files-and-inline-styles",
+    "title": "Web Devs Quickstart",
+    "section": "CSS Files and Inline Styles",
+    "text": "CSS Files and Inline Styles\nHere we modify default headers to demonstrate how to use the Sakura CSS microframework instead of FastHTML’s default of Pico CSS.\n\n\nmain.py\n\nfrom fasthtml.fastapp import * \n\napp, rt = fast_app(\n1    default_hdrs=False,\n    hdrs=(\n        Link(rel='stylesheet', href='assets/normalize.min.css', type='text/css'),\n2        Link(rel='stylesheet', href='assets/sakura.css', type='text/css'),\n3        Style(\"p {color: red;}\")\n))\n\n@app.get(\"/\")\ndef home():\n    return Titled(\"FastHTML\",\n        P(\"Let's do this!\"),\n    )\n\nserve()\n\n\n1\n\nBy setting default_hdrs to False, FastHTML will not include pico.min.css.\n\n2\n\nThis will generate an HTML &lt;link&gt; tag for sourcing the css for Sakura.\n\n3\n\nIf you want an inline styles, the Style() function will put the result into the HTML.\n\n\nCheck it out!",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "Web Devs Quickstart"
+    ]
+  },
+  {
+    "objectID": "tutorials/quickstart_for_web_devs.html#other-static-media-file-locations",
+    "href": "tutorials/quickstart_for_web_devs.html#other-static-media-file-locations",
+    "title": "Web Devs Quickstart",
+    "section": "Other Static Media File Locations",
+    "text": "Other Static Media File Locations\nAs you saw, Script and Link are specific to the most common static media use cases in web apps: including JavaScript, CSS, and images. But it also works with videos and other static media files. The default behavior is to look for these files in the root directory - typically we don’t do anything special to include them.\nFastHTML also allows us to define a route that uses FileResponse to serve the file at a specified path. This is useful for serving images, videos, and other media files from a different directory without having to change the paths of many files. So if we move the directory containing the media files, we only need to change the path in one place. In the example below, we call images from a directory called public.\n@rt(\"/{fname:path}.{ext:static}\")\nasync def get(fname:str, ext:str): \n    return FileResponse(f'public/{fname}.{ext}')",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "Web Devs Quickstart"
+    ]
+  },
+  {
+    "objectID": "tutorials/quickstart_for_web_devs.html#rendering-markdown",
+    "href": "tutorials/quickstart_for_web_devs.html#rendering-markdown",
+    "title": "Web Devs Quickstart",
+    "section": "Rendering Markdown",
+    "text": "Rendering Markdown\nfrom fasthtml.common import *\n\nhdrs = (MarkdownJS(), HighlightJS(langs=['python', 'javascript', 'html', 'css']), )\n\napp, rt = fast_app(hdrs=hdrs)\n\ncontent = \"\"\"\nHere are some _markdown_ elements.\n\n- This is a list item\n- This is another list item\n- And this is a third list item\n\n**Fenced code blocks work here.**\n\"\"\"\n\n@rt('/')\ndef get(req):\n    return Titled(\"Markdown rendering example\", Div(content,cls=\"marked\"))\n\nserve()",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "Web Devs Quickstart"
+    ]
+  },
+  {
+    "objectID": "tutorials/quickstart_for_web_devs.html#defining-new-ft-components",
+    "href": "tutorials/quickstart_for_web_devs.html#defining-new-ft-components",
+    "title": "Web Devs Quickstart",
+    "section": "Defining new ft components",
+    "text": "Defining new ft components\nWe can build our own ft components and combine them with other components. The simplest method is defining them as a function.\n\ndef hero(title, statement):\n    return Div(H1(title),P(statement), cls=\"hero\")\n\n# usage example\nMain(\n    hero(\"Hello World\", \"This is a hero statement\")\n)\n\n&lt;main&gt;\n  &lt;div class=\"hero\"&gt;\n    &lt;h1&gt;Hello World&lt;/h1&gt;\n    &lt;p&gt;This is a hero statement&lt;/p&gt;\n  &lt;/div&gt;\n&lt;/main&gt;\n\n\n\nPass through components\nFor when we need to define a new component that allows zero-to-many components to be nested within them, we lean on Python’s *args and **kwargs mechanism. Useful for creating page layout controls.\n\ndef layout(*args, **kwargs):\n    \"\"\"Dashboard layout for all our dashboard views\"\"\"\n    return Main(\n        H1(\"Dashboard\"),\n        Div(*args, **kwargs),\n        cls=\"dashboard\",\n    )\n\n# usage example\nlayout(\n    Ul(*[Li(o) for o in range(3)]),\n    P(\"Some content\", cls=\"description\"),\n)\n\n&lt;main class=\"dashboard\"&gt;\n  &lt;h1&gt;Dashboard&lt;/h1&gt;\n  &lt;div&gt;\n    &lt;ul&gt;\n      &lt;li&gt;0&lt;/li&gt;\n      &lt;li&gt;1&lt;/li&gt;\n      &lt;li&gt;2&lt;/li&gt;\n    &lt;/ul&gt;\n    &lt;p class=\"description\"&gt;Some content&lt;/p&gt;\n  &lt;/div&gt;\n&lt;/main&gt;\n\n\n\n\nDataclasses as ft components\nWhile functions are easy to read, for more complex components some might find it easier to use a dataclass.\n\nfrom dataclasses import dataclass\n\n@dataclass\nclass Hero:\n    title: str\n    statement: str\n    \n    def __ft__(self):\n        \"\"\" The __ft__ method renders the dataclass at runtime.\"\"\"\n        return Div(H1(self.title),P(self.statement), cls=\"hero\")\n    \n# usage example\nMain(\n    Hero(\"Hello World\", \"This is a hero statement\")\n)\n\n&lt;main&gt;\n  &lt;div class=\"hero\"&gt;\n    &lt;h1&gt;Hello World&lt;/h1&gt;\n    &lt;p&gt;This is a hero statement&lt;/p&gt;\n  &lt;/div&gt;\n&lt;/main&gt;",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "Web Devs Quickstart"
+    ]
+  },
+  {
+    "objectID": "tutorials/quickstart_for_web_devs.html#testing-views-in-notebooks",
+    "href": "tutorials/quickstart_for_web_devs.html#testing-views-in-notebooks",
+    "title": "Web Devs Quickstart",
+    "section": "Testing views in notebooks",
+    "text": "Testing views in notebooks\nBecause of the ASGI event loop it is currently impossible to run FastHTML inside a notebook. However, we can still test the output of our views. To do this, we leverage Starlette, an ASGI toolkit that FastHTML uses.\n\n# First we instantiate our app, in this case we remove the\n# default headers to reduce the size of the output.\napp, rt = fast_app(default_hdrs=False)\n\n# Setting up the Starlette test client\nfrom starlette.testclient import TestClient\nclient = TestClient(app)\n\n# Usage example\n@rt(\"/\")\ndef get():\n    return Titled(\"FastHTML is awesome\", \n        P(\"The fastest way to create web apps in Python\"))\n\nprint(client.get(\"/\").text)\n\n&lt;!doctype html&gt;&lt;/!doctype&gt;\n\n&lt;html&gt;\n  &lt;head&gt;\n    &lt;title&gt;FastHTML is awesome&lt;/title&gt;\n  &lt;/head&gt;\n  &lt;body&gt;\n&lt;main class=\"container\"&gt;\n  &lt;h1&gt;FastHTML is awesome&lt;/h1&gt;\n  &lt;p&gt;The fastest way to create web apps in Python&lt;/p&gt;\n&lt;/main&gt;\n  &lt;/body&gt;\n&lt;/html&gt;",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "Web Devs Quickstart"
+    ]
+  },
+  {
+    "objectID": "tutorials/quickstart_for_web_devs.html#cookies",
+    "href": "tutorials/quickstart_for_web_devs.html#cookies",
+    "title": "Web Devs Quickstart",
+    "section": "Cookies",
+    "text": "Cookies\nUsing Starlette’s Response object, we can set cookies. In our example, we’ll create a timestamp cookie.\n\nfrom starlette.responses import Response\nfrom datetime import datetime\n\n@rt('/settimestamp')\ndef get(request):\n    now = datetime.now()\n    res = Response(f'Set to {now}')\n    res.set_cookie('timestamp', str(now))\n    return res\n\nclient.get('/settime').text\n\n'Set to 2024-07-27 08:46:31.732189'\n\n\nNow let’s get it back using the Starlette’s Request object, passed as an argument into our view.\n\n@rt('/gettimestamp')\ndef get(request):\n    res = Response(f'Get timestamp: {request.cookies.get(\"now\")}')\n    return res\n\nclient.get('/gettimestamp').text\n\n'Getting our timestamp: 2024-07-27 08:46:31.732189'",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "Web Devs Quickstart"
+    ]
+  },
+  {
+    "objectID": "tutorials/quickstart_for_web_devs.html#sessions",
+    "href": "tutorials/quickstart_for_web_devs.html#sessions",
+    "title": "Web Devs Quickstart",
+    "section": "Sessions",
+    "text": "Sessions\nFor convenience and security, FastHTML has a mechanism for storing small amounts of data in the user’s browser. We can do this by adding a session argument to routes. FastHTML sessions are Python dictonaries, and we can leverage to our benefit. The example below shows how to concisely set and get sessions.\n\n@rt('/adder/{num}')\ndef get(session, num: int):\n    session.setdefault('sum', 0)\n    session['sum'] = session.get('sum') + num\n    return Response(f'The sum is {session[\"sum\"]}.')",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "Web Devs Quickstart"
+    ]
+  },
+  {
+    "objectID": "tutorials/quickstart_for_web_devs.html#toasts-also-known-as-messages",
+    "href": "tutorials/quickstart_for_web_devs.html#toasts-also-known-as-messages",
+    "title": "Web Devs Quickstart",
+    "section": "Toasts (also known as Messages)",
+    "text": "Toasts (also known as Messages)\nToasts, sometimes called “Messages” are small notifications usually in colored boxes used to notify users that something has happened. Toasts can be of four types:\n\ninfo\nsuccess\nwarning\nerror\n\nExamples toasts might include:\n\n“Payment accepted”\n“Data submitted”\n“Request approved”\n\nToasts take a little configuration plus views that use them require the session argument.\n1setup_toasts(app)\n\n@rt('/toasting')\n2def get(session):\n    # Normally one toast is enough, this allows us to see\n    # different toast types in action.\n    add_toast(session, f\"Toast is being cooked\", \"info\")\n    add_toast(session, f\"Toast is ready\", \"success\")\n    add_toast(session, f\"Toast is getting a bit crispy\", \"warning\")\n    add_toast(session, f\"Toast is burning!\", \"error\")\n    return Titled(\"I like toast\")\n\n1\n\nsetup_toasts is a helper function that adds toast dependencies. Usually this would be declared right after fast_app().\n\n2\n\nToasts require sessions.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "Web Devs Quickstart"
+    ]
+  },
+  {
+    "objectID": "tutorials/quickstart_for_web_devs.html#authentication-and-authorization",
+    "href": "tutorials/quickstart_for_web_devs.html#authentication-and-authorization",
+    "title": "Web Devs Quickstart",
+    "section": "Authentication and authorization",
+    "text": "Authentication and authorization\nIn FastHTML the tasks of authentication and authorization are handled with Beforeware. Beforeware are functions that run before the route handler is called. They are useful for global tasks like ensuring users are authenticated or have permissions to access a view.\nFirst, we write a function that accepts a request and session arguments:\n\n# Status code 303 is a redirect that can change POST to GET,\n# so it's appropriate for a login page.\nlogin_redir = RedirectResponse('/login', status_code=303)\n\ndef user_auth_before(req, sess):\n    # The `auth` key in the request scope is automatically provided\n    # to any handler which requests it, and can not be injected\n    # by the user using query params, cookies, etc, so it should\n    # be secure to use.    \n    auth = req.scope['auth'] = sess.get('auth', None)\n    # If the session key is not there, it redirects to the login page.\n    if not auth: return login_redir\n\nNow we pass our user_auth_before function as the first argument into a Beforeware class. We also pass a list of regular expressions to the skip argument, designed to allow users to still get to the home and login pages.\n\nbeforeware = Beforeware(\n    user_auth_before,\n    skip=[r'/favicon\\.ico', r'/static/.*', r'.*\\.css', r'.*\\.js', '/login', '/']\n)\n\napp, rt = fast_app(before=beforeware)",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "Web Devs Quickstart"
+    ]
+  },
+  {
+    "objectID": "tutorials/quickstart_for_web_devs.html#unwritten-quickstart-sections",
+    "href": "tutorials/quickstart_for_web_devs.html#unwritten-quickstart-sections",
+    "title": "Web Devs Quickstart",
+    "section": "Unwritten quickstart sections",
+    "text": "Unwritten quickstart sections\n\nWebsockets\nTables",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "Web Devs Quickstart"
+    ]
+  },
+  {
+    "objectID": "tutorials/by_example.html",
+    "href": "tutorials/by_example.html",
+    "title": "FastHTML By Example",
+    "section": "",
+    "text": "There are lots of non-FastHTML-specific tricks and patterns involved in building web apps. The goal of this tutorial is to give an alternate introduction to FastHTML, building out example applications to show common patterns and illustrate some of the ways you can build on top of the FastHTML foundations to create your own custom web apps. A secondary goal is to have this be a useful document to add to the context of an LLM to turn it into a useful FastHTML assistant.\nLet’s get started.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "FastHTML By Example"
+    ]
+  },
+  {
+    "objectID": "tutorials/by_example.html#fasthtml-basics",
+    "href": "tutorials/by_example.html#fasthtml-basics",
+    "title": "FastHTML By Example",
+    "section": "FastHTML Basics",
+    "text": "FastHTML Basics\nFastHTML is just Python. You can install it with pip install python-fasthtml. Extensions/components built for it can likewise be distriuted via PyPI or as simple Python files.\nThe core usage of FastHTML is to define routes, and then to define what to do at each route. This is similar to the FastAPI web framework (in fact we implemented much of the fuctionality to match the FastAPI usage examples), but where FastAPI focuses on returning JSON data to build APIs, FastHTML focuses on returning HTML data.\nHere’s a simple FastHTML app that returns a “Hello, World” message:\n\nfrom fasthtml import FastHTML\n\napp = FastHTML()\n\n@app.get(\"/\")\ndef home():\n    return \"&lt;h1&gt;Hello, World&lt;/h1&gt;\"\n\nTo run this app, place it in a file, say app.py, and then run it with uvicorn app:app --reload. You’ll see a message like this:\nINFO:     Will watch for changes in these directories: ['/home/jonathan/fasthtml-example']\nINFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)\nINFO:     Started reloader process [871942] using WatchFiles\nINFO:     Started server process [871945]\nINFO:     Waiting for application startup.\nINFO:     Application startup complete.\nIf you navigate to http://127.0.0.1:8000 in a browser, you’ll see your “Hello, World”. If you edit the app.py file and save it, the server will reload and you’ll see the updated message when you refresh the page in your browser.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "FastHTML By Example"
+    ]
+  },
+  {
+    "objectID": "tutorials/by_example.html#constructing-html",
+    "href": "tutorials/by_example.html#constructing-html",
+    "title": "FastHTML By Example",
+    "section": "Constructing HTML",
+    "text": "Constructing HTML\nNotice we wrote some HTML in the previous example. We don’t want to do that! Some web frameworks require that you learn HTML, CSS, JavaScript AND some templating language AND python. We want to do as much as possible with just one language. Fortunately, the Python module fastcore.xml has all we need for constructing HTML from Python, and FastHTML includes all the tags you need to get started. For example:\n\nfrom fasthtml.common import *\npage = Html(\n    Head(Title('Some page')),\n    Body(Div('Some text, ', A('A link', href='https://example.com'), Img(src=\"https://placehold.co/200\"), cls='myclass')))\nprint(to_xml(page))\n\n&lt;!doctype html&gt;&lt;/!doctype&gt;\n\n&lt;html&gt;\n  &lt;head&gt;\n    &lt;title&gt;Some page&lt;/title&gt;\n  &lt;/head&gt;\n  &lt;body&gt;\n    &lt;div class=\"myclass\"&gt;\nSome text, \n      &lt;a href=\"https://example.com\"&gt;A link&lt;/a&gt;\n      &lt;img src=\"https://placehold.co/200\"&gt;\n    &lt;/div&gt;\n  &lt;/body&gt;\n&lt;/html&gt;\n\n\n\n\nshow(page)\n\n\n\n\n  \n    Some page\n  \n  \n    \nSome text, \n      A link\n      \n    \n  \n\n\n\nIf that import * worries you, you can always import only the tags you need.\nFastHTML is smart enough to know about fastcore.xml, and so you don’t need to use the to_xml function to convert your FT objects to HTML. You can just return them as you would any other Python object. For example, if we modify our previous example to use fastcore.xml, we can return an FT object directly:\n\napp = FastHTML()\n\n@app.get(\"/\")\ndef home():\n    return Div(H1('Hello, World'), P('Some text'), P('Some more text'))\n\nThis will render the HTML in the browser.\nFor debugging, you can right-click on the rendered HTML in the browser and select “Inspect” to see the underlying HTML that was generated. There you’ll also find the ‘network’ tab, which shows you the requests that were made to render the page. Refresh and look for the request to 127.0.0.1 - and you’ll see it’s just a GET request to /, and the response body is the HTML you just returned.\nYou can also use Starlette’s TestClient to try it out in a notebook:\n\nfrom starlette.testclient import TestClient\nclient = TestClient(app)\nr = client.get(\"/\")\nr.text\n\n'&lt;!doctype html&gt;&lt;/!doctype&gt;\\n\\n&lt;html&gt;\\n  &lt;head&gt;\\n    &lt;title&gt;FastHTML page&lt;/title&gt;\\n    &lt;meta charset=\"utf-8\"&gt;&lt;/meta&gt;\\n    &lt;meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\"&gt;&lt;/meta&gt;\\n    &lt;script src=\"https://unpkg.com/htmx.org@next/dist/htmx.min.js\"&gt;&lt;/script&gt;\\n    &lt;script src=\"https://cdn.jsdelivr.net/gh/answerdotai/surreal@1.3.0/surreal.js\"&gt;&lt;/script&gt;\\n    &lt;script src=\"https://cdn.jsdelivr.net/gh/gnat/css-scope-inline@main/script.js\"&gt;&lt;/script&gt;\\n  &lt;/head&gt;\\n  &lt;body&gt;\\n&lt;div&gt;\\n  &lt;h1&gt;Hello, World&lt;/h1&gt;\\n  &lt;p&gt;Some text&lt;/p&gt;\\n  &lt;p&gt;Some more text&lt;/p&gt;\\n&lt;/div&gt;\\n  &lt;/body&gt;\\n&lt;/html&gt;\\n'\n\n\nFastHTML wraps things in an Html tag if you don’t do it yourself (unless the request comes from htmx, in which case you get the element directly). See the section ‘FT objects and HTML’ for more on creating custom components or adding HTML rendering to existing python objects. To give the page a non-default title, return a Title before your main content:\n\napp = FastHTML()\n\n@app.get(\"/\")\ndef home():\n    return Title(\"Page Demo\"), Div(H1('Hello, World'), P('Some text'), P('Some more text'))\n\nclient = TestClient(app)\nprint(client.get(\"/\").text)\n\n&lt;!doctype html&gt;&lt;/!doctype&gt;\n\n&lt;html&gt;\n  &lt;head&gt;\n    &lt;title&gt;Page Demo&lt;/title&gt;\n    &lt;meta charset=\"utf-8\"&gt;&lt;/meta&gt;\n    &lt;meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\"&gt;&lt;/meta&gt;\n    &lt;script src=\"https://unpkg.com/htmx.org@next/dist/htmx.min.js\"&gt;&lt;/script&gt;\n    &lt;script src=\"https://cdn.jsdelivr.net/gh/answerdotai/surreal@1.3.0/surreal.js\"&gt;&lt;/script&gt;\n    &lt;script src=\"https://cdn.jsdelivr.net/gh/gnat/css-scope-inline@main/script.js\"&gt;&lt;/script&gt;\n  &lt;/head&gt;\n  &lt;body&gt;\n&lt;div&gt;\n  &lt;h1&gt;Hello, World&lt;/h1&gt;\n  &lt;p&gt;Some text&lt;/p&gt;\n  &lt;p&gt;Some more text&lt;/p&gt;\n&lt;/div&gt;\n  &lt;/body&gt;\n&lt;/html&gt;\n\n\n\nWe’ll use this pattern often in the examples to follow.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "FastHTML By Example"
+    ]
+  },
+  {
+    "objectID": "tutorials/by_example.html#defining-routes",
+    "href": "tutorials/by_example.html#defining-routes",
+    "title": "FastHTML By Example",
+    "section": "Defining Routes",
+    "text": "Defining Routes\nThe HTTP protocol defines a number of methods (‘verbs’) to send requests to a server. The most common are GET, POST, PUT, DELETE, and HEAD. We saw ‘GET’ in action before - when you navigate to a URL, you’re making a GET request to that URL. We can do different things on a route for different HTTP methods. For example:\n@app.route(\"/\", methods='get')\ndef home():\n    return H1('Hello, World')\n\n@app.route(\"/\", methods=['post', 'put'])\ndef post_or_put():\n    return \"got a POST or PUT request\"\nThis says that when someone navigates to the root URL “/” (i.e. sends a GET request), they will see the big “Hello, World” heading. When someone submits a POST or PUT request to the same URL, the server should return the string “got a post or put request”.\nAside: You can test the POST request with curl -X POST http://127.0.0.1:8000 -d \"some data\". This sends some data to the server, you should see the response “got a post or put request” printed in the terminal.\nThere are a few other ways you can specify the route+method - FastHTML has .get, .post, etc. as shorthand for route(..., methods=['get']), etc.\n\n@app.get(\"/\")\ndef my_function():\n    return \"Hello World from a GET request\"\n\nOr you can use the @app.route decorator without a method but specify the method with the name of the function. For example:\n\n@app.route(\"/\")\ndef post():\n    return \"Hello World from a POST request\"\n\n\nclient.post(\"/\").text\n\n'Hello World from a POST request'\n\n\nYou’re welcome to pick whichever style you prefer. Using routes let’s you show different content on different pages - ‘/home’, ‘/about’ and so on. You can also respond differently to different kinds of requests to the same route, as we shown above. You can also pass data via the route:\n\n@app.get(\"/greet/{nm}\")\ndef greet(nm:str):\n    return f\"Good day to you, {nm}!\"\n\nclient.get(\"/greet/Dave\").text\n\n'Good day to you, Dave!'\n\n\nMore on this in the ‘More on Routing and Requests’ section, which goes deeper into the different ways to get information from a request.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "FastHTML By Example"
+    ]
+  },
+  {
+    "objectID": "tutorials/by_example.html#styling-basics",
+    "href": "tutorials/by_example.html#styling-basics",
+    "title": "FastHTML By Example",
+    "section": "Styling Basics",
+    "text": "Styling Basics\nPlain HTML probably isn’t quite what you imagine when you visualize your beautiful web app. CSS is the go-to language for styling HTML. But again, we don’t want to learn extra languages unless we absolutely have to! Fortunately, there are ways to get much more visually appealing sites by relying on the hard work of others, using existing CSS libraries. One of our favourites is PicoCSS. To add a CSS file to HTML, you can use the &lt;link&gt; tag. Since we typically want things like CSS styling on all pages of our app, FastHTML lets you add shared headers when you define your app. And it already has picolink defined for convenience. As per the pico docs, we put all of our content inside a &lt;main&gt; tag with a class of container:\n\nfrom fasthtml import *\n# App with custom styling to override the pico defaults\ncss = Style(':root { --pico-font-size: 100%; --pico-font-family: Pacifico, cursive;}')\napp = FastHTML(hdrs=(picolink, css))\n\n@app.route(\"/\")\ndef get():\n    return Title(\"Hello World\"), Main(H1('Hello, World'), cls=\"container\")\n\nAside: We’re returning a tuple here (a title and the main page). This is needed to tell FastHTML to turn the main body into a full HTML page that includes the headers (including the pico link and our custom css) which we passed in.\nYou can check out the Pico examples page to see how different elements will look. If everything is working, the page should now render nice text with our custom font, and it should respect the user’s light/dark mode preferences too.\nIf you want to override the default styles or add more custom CSS, you can do so by adding a &lt;style&gt; tag to the headers as shown above. So you are allowed to write CSS to your heart’s content - we just want to make sure you don’t necessarily have to! Later on we’ll see examples using other component libraries and tailwind css to do more fancy styling things, along with tips to get an LLM to write all those fiddly bits so you don’t have to.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "FastHTML By Example"
+    ]
+  },
+  {
+    "objectID": "tutorials/by_example.html#web-page---web-app",
+    "href": "tutorials/by_example.html#web-page---web-app",
+    "title": "FastHTML By Example",
+    "section": "Web Page -> Web App",
+    "text": "Web Page -&gt; Web App\nShowing content is all well and good, but we typically expect a bit more interactivity from something calling itself a web app! So, let’s add a few different pages, and use a form to let users add messages to a list:\n\napp = FastHTML()\nmessages = [\"This is a message, which will get rendered as a paragraph\"]\n\n@app.get(\"/\")\ndef home():\n    return Main(H1('Messages'), \n                *[P(msg) for msg in messages],\n                A(\"Link to Page 2 (to add messages)\", href=\"/page2\"))\n\n@app.get(\"/page2\")\ndef page2():\n    return Main(P(\"Add a message with the form below:\"),\n                Form(Input(type=\"text\", name=\"data\"),\n                     Button(\"Submit\"),\n                     action=\"/\", method=\"post\"))\n\n@app.post(\"/\")\ndef add_message(data:str):\n    messages.append(data)\n    return home()\n\nWe re-render the entire homepage to show the newly added message. This is fine, but modern web apps often don’t re-render the entire page, they just update a part of the page. In fact even very complicated applications are often implemented as ‘Single Page Apps’ (SPAs). This is where HTMX comes in.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "FastHTML By Example"
+    ]
+  },
+  {
+    "objectID": "tutorials/by_example.html#htmx",
+    "href": "tutorials/by_example.html#htmx",
+    "title": "FastHTML By Example",
+    "section": "HTMX",
+    "text": "HTMX\nHTMX addresses some key limitations of HTML. In vanilla HTML, links can trigger a GET request to show a new page, and forms can send requests containing data to the server. A lot of ‘Web 1.0’ design revolved around ways to use these to do everything we wanted. But why should only some elements be allowed to trigger requests? And why should we refresh the entire page with the result each time one does? HTMX extends HTML to allow us to trigger requests from any element on all kinds of events, and to update a part of the page without refreshing the entire page. It’s a powerful tool for building modern web apps.\nIt does this by adding attributes to HTML tags to make them do things. For example, here’s a page with a counter and a button that increments it:\n\napp = FastHTML()\n\ncount = 0\n\n@app.get(\"/\")\ndef home():\n    return Title(\"Count Demo\"), Main(\n        H1(\"Count Demo\"),\n        P(f\"Count is set to {count}\", id=\"count\"),\n        Button(\"Increment\", hx_post=\"/increment\", hx_target=\"#count\", hx_swap=\"innerHTML\")\n    )\n\n@app.post(\"/increment\")\ndef increment():\n    print(\"incrementing\")\n    global count\n    count += 1\n    return f\"Count is set to {count}\"\n\nThe button triggers a POST request to /increment (since we set hx_post=\"increment\"), which increments the count and returns the new count. The hx_target attribute tells HTMX where to put the result. If no target is specified it replaces the element that triggered the request. The hx_swap attribute specifies how it adds the result to the page. Useful options are:\n\ninnerHTML: Replace the target element’s content with the result.\nouterHTML: Replace the target element with the result.\nbeforebegin: Insert the result before the target element.\nbeforeend: Insert the result inside the target element, after its last child.\nafterbegin: Insert the result inside the target element, before its first child.\nafterend: Insert the result after the target element.\n\nYou can also use an hx_swap of delete to delete the target element regardless of response, or of none to do nothing.\nBy default, requests are triggered by the “natural” event of an element - click in the case of a button (and most other elements). You can also specify different triggers, along with various modifiers - see the HTMX docs for more.\nThis pattern of having elements trigger requests that modify or replace other elements is a key part of the HTMX philosophy. It takes a little getting used to, but once mastered it is extremely powerful.\n\nReplacing Elements Besides the Target\nSometimes having a single target is not enough, and we’d like to specify some additional elements to update or remove. In these cases, returning elements with an id that matches the element to be replaces and hx_swap_oob='true' will replace those elements too. We’ll use this in the next example to clear an input field when we submit a form.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "FastHTML By Example"
+    ]
+  },
+  {
+    "objectID": "tutorials/by_example.html#full-example-1---todo-app",
+    "href": "tutorials/by_example.html#full-example-1---todo-app",
+    "title": "FastHTML By Example",
+    "section": "Full Example #1 - ToDo App",
+    "text": "Full Example #1 - ToDo App\nThe canonical demo web app! A TODO list. Rather than create yet another variant for this tutorial, we recommend starting with this video tutorial from Jeremy:\n\n\n\n\nimage.png\n\n\nWe’ve made a number of variants of this app - so in addition to the version shown in the video you can browse this series of examples with increasing complexity, the heavily-commented “idiomatic” version here, and the example linked from the FastHTML homepage.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "FastHTML By Example"
+    ]
+  },
+  {
+    "objectID": "tutorials/by_example.html#full-example-2---image-generation-app",
+    "href": "tutorials/by_example.html#full-example-2---image-generation-app",
+    "title": "FastHTML By Example",
+    "section": "Full Example #2 - Image Generation App",
+    "text": "Full Example #2 - Image Generation App\nLet’s create an image generation app. We’d like to wrap a text-to-image model in a nice UI, where the user can type in a prompt and see a generated image appear. We’ll use a model hosted by Replicate to actually generate the images. Let’s start with the homepage, with a form to submit prompts and a div to hold the generated images:\n# Main page\n@app.get(\"/\")\ndef get():\n    inp = Input(id=\"new-prompt\", name=\"prompt\", placeholder=\"Enter a prompt\")\n    add = Form(Group(inp, Button(\"Generate\")), hx_post=\"/\", target_id='gen-list', hx_swap=\"afterbegin\")\n    gen_list = Div(id='gen-list')\n    return Title('Image Generation Demo'), Main(H1('Magic Image Generation'), add, gen_list, cls='container')\nSubmitting the form will trigger a POST request to /, so next we need to generate an image and add it to the list. One problem: generating images is slow! We’ll start the generation in a separate thread, but this now surfaces a different problem: we want to update the UI right away, but our image will only be ready a few seconds later. This is a common pattern - think about how often you see a loading spinner online. We need a way to return a temporary bit of UI which will eventually be replaced by the final image. Here’s how we might do this:\ndef generation_preview(id):\n    if os.path.exists(f\"gens/{id}.png\"):\n        return Div(Img(src=f\"/gens/{id}.png\"), id=f'gen-{id}')\n    else:\n        return Div(\"Generating...\", id=f'gen-{id}', \n                   hx_post=f\"/generations/{id}\",\n                   hx_trigger='every 1s', hx_swap='outerHTML')\n    \n@app.post(\"/generations/{id}\")\ndef get(id:int): return generation_preview(id)\n\n@app.post(\"/\")\ndef post(prompt:str):\n    id = len(generations)\n    generate_and_save(prompt, id)\n    generations.append(prompt)\n    clear_input =  Input(id=\"new-prompt\", name=\"prompt\", placeholder=\"Enter a prompt\", hx_swap_oob='true')\n    return generation_preview(id), clear_input\n\n@threaded\ndef generate_and_save(prompt, id): ... \nThe form sends the prompt to the / route, which starts the generation in a separate thread then returns two things:\n\nA generation preview element that will be added to the top of the gen-list div (since that is the target_id of the form which triggered the request)\nAn input field that will replace the form’s input field (that has the same id), using the hx_swap_oob=‘true’ trick. This clears the prompt field so the user can type another prompt.\n\nThe generation preview first returns a temporary “Generating…” message, which polls the /generations/{id} route every second. This is done by setting hx_post to the route and hx_trigger to ‘every 1s’. The /generations/{id} route returns the preview element every second until the image is ready, at which point it returns the final image. Since the final image replaces the temporary one (hx_swap=‘outerHTML’), the polling stops running and the generation preview is now complete.\nThis works nicely - the user can submit several prompts without having to wait for the first one to generate, and as the images become available they are added to the list. You can see the full code of this version here.\n\nAgain, with Style\nThe app is functional, but can be improved. The next version adds more stylish generation previews, lays out the images in a grid layout that is responsive to different screen sizes, and adds a database to track generations and make them persistent. The database part is very similar to the todo list example, so let’s just quickly look at how we add the nice grid layout. This is what the result looks like:\n\n\n\nimage.png\n\n\nStep one was looking around for existing components. The Pico CSS library we’ve been using has a rudimentary grid but recommends using an alternative layout system. One of the options listed was Flexbox.\nTo use Flexbox you create a “row” with one or more elements. You can specify how wide things should be with a specific syntax in the class name. For example, col-xs-12 means a box that will take up 12 columns (out of 12 total) of the row on extra small screens, col-sm-6 means a column that will take up 6 columns of the row on small screens, and so on. So if you want four columns on large screens you would use col-lg-3 for each item (i.e. each item is using 3 columns out of 12).\n&lt;div class=\"row\"&gt;\n    &lt;div class=\"col-xs-12\"&gt;\n        &lt;div class=\"box\"&gt;This takes up the full width&lt;/div&gt;\n    &lt;/div&gt;\n&lt;/div&gt;\nThis was non-intuitive to me. Thankfully ChatGPT et al know web stuff quite well, and we can also experiment in a notebook to test things out:\n\ngrid = Html(\n    Link(rel=\"stylesheet\", href=\"https://cdnjs.cloudflare.com/ajax/libs/flexboxgrid/6.3.1/flexboxgrid.min.css\", type=\"text/css\"),\n    Div(\n        Div(Div(\"This takes up the full width\", cls=\"box\", style=\"background-color: #800000;\"), cls=\"col-xs-12\"),\n        Div(Div(\"This takes up half\", cls=\"box\", style=\"background-color: #008000;\"), cls=\"col-xs-6\"),\n        Div(Div(\"This takes up half\", cls=\"box\", style=\"background-color: #0000B0;\"), cls=\"col-xs-6\"),\n        cls=\"row\", style=\"color: #fff;\"\n    )\n)\nshow(grid)\n\n\n\n\n  \n  \n    \n      This takes up the full width\n    \n    \n      This takes up half\n    \n    \n      This takes up half\n    \n  \n\n\n\nAside: when in doubt with CSS stuff, add a background color or a border so you can see what’s happening!\nTranslating this into our app, we have a new homepage with a div (class=“row”) to store the generated images / previews, and a generation_preview function that returns boxes with the appropriate classes and styles to make them appear in the grid. I chose a layout with different numbers of columns for different screen sizes, but you could also just specify the col-xs class if you wanted the same layout on all devices.\ngridlink = Link(rel=\"stylesheet\", href=\"https://cdnjs.cloudflare.com/ajax/libs/flexboxgrid/6.3.1/flexboxgrid.min.css\", type=\"text/css\")\napp = FastHTML(hdrs=(picolink, gridlink))\n\n# Main page\n@app.get(\"/\")\ndef get():\n    inp = Input(id=\"new-prompt\", name=\"prompt\", placeholder=\"Enter a prompt\")\n    add = Form(Group(inp, Button(\"Generate\")), hx_post=\"/\", target_id='gen-list', hx_swap=\"afterbegin\")\n    gen_containers = [generation_preview(g) for g in gens(limit=10)] # Start with last 10\n    gen_list = Div(*gen_containers[::-1], id='gen-list', cls=\"row\") # flexbox container: class = row\n    return Title('Image Generation Demo'), Main(H1('Magic Image Generation'), add, gen_list, cls='container')\n\n# Show the image (if available) and prompt for a generation\ndef generation_preview(g):\n    grid_cls = \"box col-xs-12 col-sm-6 col-md-4 col-lg-3\"\n    image_path = f\"{g.folder}/{g.id}.png\"\n    if os.path.exists(image_path):\n        return Div(Card(\n                       Img(src=image_path, alt=\"Card image\", cls=\"card-img-top\"),\n                       Div(P(B(\"Prompt: \"), g.prompt, cls=\"card-text\"),cls=\"card-body\"),\n                   ), id=f'gen-{g.id}', cls=grid_cls)\n    return Div(f\"Generating gen {g.id} with prompt {g.prompt}\", \n            id=f'gen-{g.id}', hx_get=f\"/gens/{g.id}\", \n            hx_trigger=\"every 2s\", hx_swap=\"outerHTML\", cls=grid_cls)\nYou can see the final result in main.py in the image_app_simple example directory, along with info on deploying it (tl;dr don’t!). We’ve also deployed a version that only shows your generations (tied to browser session) and has a credit system to save our bank accounts. You can access that here. Now for the next question: how do we keep track of different users?\n\n\nAgain, with Sessions\nAt the moment everyone sees all images! How do we keep some sort of unique identifier tied to a user? Before going all the way to setting up users, login pages etc., let’s look at a way to at least limit generations to the user’s session. You could do this manually with cookies. For convenience and security, fasthtml (via Starlette) has a special mechanism for storing small amounts of data in the user’s browser via the session argument to your route. This acts like a dictionary and you can set and get values from it. For example, here we look for a session_id key, and if it doesn’t exist we generate a new one:\n@app.get(\"/\")\ndef get(session):\n    if 'session_id' not in session: session['session_id'] = str(uuid.uuid4())\n    return H1(f\"Session ID: {session['session_id']}\")\nRefresh the page a few times - you’ll notice that the session ID remains the same. If you clear your browsing data, you’ll get a new session ID. And if you load the page in a different browser (but not a different tab), you’ll get a new session ID. This will persist within the current browser, letting us use it as a key for our generations. As a bonus, someone can’t spoof this session id by passing it in another way (for example, sending a query parameter). Behind the scenes, the data is stored in a browser cookie but it is signed with a secret key that stops the user or anyone nefarious from being able to tamper with it. The cookie is decoded back into a dictionary by something called a middleware function, which we won’t cover here. All you need to know is that we can use this to store bits of state in the user’s browser.\nIn the image app example, we can add a session_id column to our database, and modify our homepage like so:\n@app.get(\"/\")\ndef get(session):\n    if 'session_id' not in session: session['session_id'] = str(uuid.uuid4())\n    inp = Input(id=\"new-prompt\", name=\"prompt\", placeholder=\"Enter a prompt\")\n    add = Form(Group(inp, Button(\"Generate\")), hx_post=\"/\", target_id='gen-list', hx_swap=\"afterbegin\")\n    gen_containers = [generation_preview(g) for g in gens(limit=10, where=f\"session_id == '{session['session_id']}'\")]\n    ...\nSo we check if the session id exists in the session, add one if not, and then limit the generations shown to only those tied to this session id. We filter the database with a where clause - see TODO link Jeremy’s example for a more reliable to do this. The only other change we need to make is to store the session id in the database when a generation is made. You can check out this version here. You could instead write this app without relying on a database at all - simply storing the filenames of the generated images in the session, for example. But this more general approach of linking some kind of unique session identifier to users or data in our tables is a useful general pattern for more complex examples.\n\n\nAgain, with Credits!\nGenerating images with replicate costs money. So next let’s add a pool of credits that get used up whenever anyone generates an image. To recover our lost funds, we’ll also set up a payment system so that generous users can buy more credits for everyone. You could modify this to let users buy credits tied to their session ID, but at that point you risk angry customers loosing their money after wiping their browser history, and should consider setting up proper account management :)\nTaking payments with Stripe is intimidating but very doable. Here’s a tutorial that shows the general principle using Flask. As with other popular tasks in the web-dev world, ChatGPT knows a lot about Stripe - but you should exercise extra caution when writing code that handles money!\nFor the finished example we add the bare minimum:\n\nA way to create a Stripe checkout session and redirect the user to the session URL\n‘Success’ and ‘Cancel’ routes to handle the result of the checkout\nA route that listens for a webhook from Stripe to update the number of credits when a payment is made.\n\nIn a typical application you’ll want to keep track of which users make payments, catch other kinds of stripe events and so on. This example is more ‘this is possible, do your own research’ than ‘this is how you do it’. But hopefully it does illustrate the key idea: there is no magic here. Stripe (and many other technologies) relies on sending users to different routes and shuttling data back and forth in requests. And we know how to do that!",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "FastHTML By Example"
+    ]
+  },
+  {
+    "objectID": "tutorials/by_example.html#more-on-routing-and-request-parameters",
+    "href": "tutorials/by_example.html#more-on-routing-and-request-parameters",
+    "title": "FastHTML By Example",
+    "section": "More on Routing and Request Parameters",
+    "text": "More on Routing and Request Parameters\nThere are a number of ways information can be passed to the server. When you specify arguments to a route, FastHTML will search the request for values with the same name, and convert them to the correct type. In order, it searchs\n\nThe path parameters\nThe query parameters\nThe cookies\nThe headers\nThe session\nForm data\n\nThere are also a few special arguments\n\nrequest (or any prefix like req): gets the raw Starlette Request object\nsession (or any prefix like sess): gets the session object\nauth\nhtmx\napp\n\nIn this section let’s quickly look at some of these in action.\n\napp = FastHTML()\ncli = TestClient(app)\n\nPart of the route (path parameters):\n\n@app.get('/user/{nm}')\ndef _(nm:str): return f\"Good day to you, {nm}!\"\n\ncli.get('/user/jph').text\n\n'Good day to you, jph!'\n\n\nMatching with a regex:\n\nreg_re_param(\"imgext\", \"ico|gif|jpg|jpeg|webm\")\n\n@app.get(r'/static/{path:path}{fn}.{ext:imgext}')\ndef get_img(fn:str, path:str, ext:str): return f\"Getting {fn}.{ext} from /{path}\"\n\ncli.get('/static/foo/jph.ico').text\n\n'Getting jph.ico from /foo/'\n\n\nUsing an enum (try using a string that isn’t in the enum):\n\nModelName = str_enum('ModelName', \"alexnet\", \"resnet\", \"lenet\")\n\n@app.get(\"/models/{nm}\")\ndef model(nm:ModelName): return nm\n\nprint(cli.get('/models/alexnet').text)\n\nalexnet\n\n\nCasting to a Path:\n\n@app.get(\"/files/{path}\")\ndef txt(path: Path): return path.with_suffix('.txt')\n\nprint(cli.get('/files/foo').text)\n\nfoo.txt\n\n\nAn integer with a default value:\n\nfake_db = [{\"name\": \"Foo\"}, {\"name\": \"Bar\"}]\n\n@app.get(\"/items/\")\ndef read_item(idx:int|None = 0): return fake_db[idx]\n\nprint(cli.get('/items/?idx=1').text)\n\n{\"name\":\"Bar\"}\n\n\n\nprint(cli.get('/items/').text)\n\n{\"name\":\"Foo\"}\n\n\nBoolean values (takes anything “truthy” or “falsy”):\n\n@app.get(\"/booly/\")\ndef booly(coming:bool=True): return 'Coming' if coming else 'Not coming'\n\nprint(cli.get('/booly/?coming=true').text)\n\nComing\n\n\n\nprint(cli.get('/booly/?coming=no').text)\n\nNot coming\n\n\nGetting dates:\n\n@app.get(\"/datie/\")\ndef datie(d:date): return d\n\ndate_str = \"17th of May, 2024, 2p\"\nprint(cli.get(f'/datie/?d={date_str}').text)\n\n2024-05-17 14:00:00\n\n\nMatching a dataclass:\n\nfrom dataclasses import dataclass, asdict\n\n@dataclass\nclass Bodie:\n    a:int;b:str\n\n@app.route(\"/bodie/{nm}\")\ndef post(nm:str, data:Bodie):\n    res = asdict(data)\n    res['nm'] = nm\n    return res\n\ncli.post('/bodie/me', data=dict(a=1, b='foo')).text\n\n'{\"a\":1,\"b\":\"foo\",\"nm\":\"me\"}'\n\n\n\nCookies\nCookies can be set via a Starlette Response object, and can be read back by specifying the name:\n\nfrom datetime import datetime\n\n@app.get(\"/setcookie\")\ndef setc(req):\n    now = datetime.now()\n    res = Response(f'Set to {now}')\n    res.set_cookie('now', str(now))\n    return res\n\ncli.get('/setcookie').text\n\n'Set to 2024-07-20 23:14:54.364793'\n\n\n\n@app.get(\"/getcookie\")\ndef getc(now:date): return f'Cookie was set at time {now.time()}'\n\ncli.get('/getcookie').text\n\n'Cookie was set at time 23:14:54.364793'\n\n\n\n\nUser Agent and HX-Request\nAn argument of user_agent will match the header User-Agent. This holds for special headers like HX-Request (used by HTMX to signal when a request comes from an HTMX request) - the general pattern is that “-” is replaced with “_” and strings are turned to lowercase.\n\n@app.get(\"/ua\")\nasync def ua(user_agent:str): return user_agent\n\ncli.get('/ua', headers={'User-Agent':'FastHTML'}).text\n\n'FastHTML'\n\n\n\n@app.get(\"/hxtest\")\ndef hxtest(htmx): return htmx.request\n\ncli.get('/hxtest', headers={'HX-Request':'1'}).text\n\n'1'\n\n\n\n\nStarlette Requests\nIf you add an argument called request(or any prefix of that, for example req) it will be populated with the Starlette Request object. This is useful if you want to do your own processing manually. For example, although FastHTML will parse forms for you, you could instead get form data like so:\n@app.get(\"/form\")\nasync def form(request:Request):\n    form_data = await request.form()\n    a = form_data.get('a')\nSee the Starlette docs for more information on the Request object.\n\n\nStarlette Responses\nYou can return a Starlette Response object from a route to control the response. For example:\n@app.get(\"/redirect\")\ndef redirect():\n    return RedirectResponse(url=\"/\")\nWe used this to set cookies in the previous example. See the Starlette docs for more information on the Response object.\n\n\nStatic Files\nWe often want to serve static files like images. This is easily done! For common file types (images, CSS etc) we can create a route that returns a Starlette FileResponse like so:\n# For images, CSS, etc.\n@app.get(\"/{fname:path}.{ext:static}\")\ndef static(fname: str, ext: str):\n  return FileResponse(f'{fname}.{ext}')\nYou can customize it to suit your needs (for example, only serving files in a certain directory). You’ll notice some variant of this route in all our complete examples - even for apps with no static files the browser will typically request a /favicon.ico file, for example, and as the astute among you will have noticed this has sparked a bit of competition between Johno and Jeremy regarding which country flag should serve as the default!\n\n\nWebSockets\nFor certain applications such as multiplayer games, websockets can be a powerful feature. Luckily HTMX and FastHTML has you covered! Simply specify that you wish to include the websocket header extension from HTMX:\napp = FastHTML(ws_hdr=True)\nrt = app.route\nWith that, you are now able to specify the different websocket specific HTMX goodies. For example, say we have a website we want to setup a websocket, you can simply:\ndef mk_inp(): return Input(id='msg')\n\n@rt('/')\nasync def get(request):\n    cts = Div(\n        Div(id='notifications'),\n        Form(mk_inp(), id='form', ws_send=True),\n        hx_ext='ws', ws_connect='/ws')\n    return Titled('Websocket Test', cts)\nAnd this will setup a connection on the route /ws along with a form that will send a message to the websocket whenever the form is submitted. Let’s go ahead and handle this route:\n@app.ws('/ws')\nasync def ws(msg:str, send):\n    await send(Div('Hello ' + msg, id=\"notifications\"))\n    await sleep(2)\n    return Div('Goodbye ' + msg, id=\"notifications\"), mk_inp()\nOne thing you might have noticed is a lack of target id for our websocket trigger for swapping HTML content. This is because HTMX always swaps content with websockets with Out of Band Swaps. Therefore, HTMX will look for the id in the returned HTML content from the server for determining what to swap. To send stuff to the client, you can either use the send parameter or simply return the content or both!\nNow, sometimes you might want to perform actions when a client connects or disconnects such as add or remove a user from a player queue. To hook into these events, you can pass your connection or disconnection function to the app.ws decorator:\nasync def on_connect(send):\n    print('Connected!')\n    await send(Div('Hello, you have connected', id=\"notifications\"))\n\nasync def on_disconnect(ws):\n    print('Disconnected!')\n\n@app.ws('/ws', conn=on_connect, disconn=on_disconnect)\nasync def ws(msg:str, send):\n    await send(Div('Hello ' + msg, id=\"notifications\"))\n    await sleep(2)\n    return Div('Goodbye ' + msg, id=\"notifications\"), mk_inp()",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "FastHTML By Example"
+    ]
+  },
+  {
+    "objectID": "tutorials/by_example.html#full-example-3---chatbot-example-with-daisyui-components",
+    "href": "tutorials/by_example.html#full-example-3---chatbot-example-with-daisyui-components",
+    "title": "FastHTML By Example",
+    "section": "Full Example #3 - Chatbot Example with DaisyUI Components",
+    "text": "Full Example #3 - Chatbot Example with DaisyUI Components\nLet’s go back to the topic of adding components or styling beyond the simple PicoCSS examples so far. How might we adopt a component or framework? In this example, let’s build a chatbot UI leveraging the DaisyUI chat bubble. The final result will look like this:\n\n\n\nimage.png\n\n\nAt first glance, DaisyUI’s chat component looks quite intimidating. The examples look like this:\n&lt;div class=\"chat chat-start\"&gt;\n  &lt;div class=\"chat-image avatar\"&gt;\n    &lt;div class=\"w-10 rounded-full\"&gt;\n      &lt;img alt=\"Tailwind CSS chat bubble component\" src=\"https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.jpg\" /&gt;\n    &lt;/div&gt;\n  &lt;/div&gt;\n  &lt;div class=\"chat-header\"&gt;\n    Obi-Wan Kenobi\n    &lt;time class=\"text-xs opacity-50\"&gt;12:45&lt;/time&gt;\n  &lt;/div&gt;\n  &lt;div class=\"chat-bubble\"&gt;You were the Chosen One!&lt;/div&gt;\n  &lt;div class=\"chat-footer opacity-50\"&gt;\n    Delivered\n  &lt;/div&gt;\n&lt;/div&gt;\n&lt;div class=\"chat chat-end\"&gt;\n  &lt;div class=\"chat-image avatar\"&gt;\n    &lt;div class=\"w-10 rounded-full\"&gt;\n      &lt;img alt=\"Tailwind CSS chat bubble component\" src=\"https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.jpg\" /&gt;\n    &lt;/div&gt;\n  &lt;/div&gt;\n  &lt;div class=\"chat-header\"&gt;\n    Anakin\n    &lt;time class=\"text-xs opacity-50\"&gt;12:46&lt;/time&gt;\n  &lt;/div&gt;\n  &lt;div class=\"chat-bubble\"&gt;I hate you!&lt;/div&gt;\n  &lt;div class=\"chat-footer opacity-50\"&gt;\n    Seen at 12:46\n  &lt;/div&gt;\n&lt;/div&gt;\nWe have several things going for us however.\n\nChatGPT knows DaisyUI and Tailwind (DaisyUI is a Tailwind component library)\nWe can build things up piece by piece with AI standing by to help.\n\nhttps://h2x.answer.ai/ is a tool that can convert HTML to FT (fastcore.xml) and back, which is useful for getting a quick starting point when you have an HTML example to start from.\nWe can strip out some unnecessary bits and try to get the simplest possible example working in a notebook first:\n\n# Loading tailwind and daisyui\nheaders = (Script(src=\"https://cdn.tailwindcss.com\"),\n           Link(rel=\"stylesheet\", href=\"https://cdn.jsdelivr.net/npm/daisyui@4.11.1/dist/full.min.css\"))\n\n# Displaying a single message\nd = Div(\n    Div(\"Chat header here\", cls=\"chat-header\"),\n    Div(\"My message goes here\", cls=\"chat-bubble chat-bubble-primary\"),\n    cls=\"chat chat-start\"\n)\n# show(Html(*headers, d)) # uncomment to view\n\nNow we can extend this to render multiple messages, with the message being on the left (chat-start) or right (chat-end) depending on the role. While we’re at it, we can also change the color (chat-bubble-primary) of the message and put them all in a chat-box div:\n\nmessages = [\n    {\"role\":\"user\", \"content\":\"Hello\"},\n    {\"role\":\"assistant\", \"content\":\"Hi, how can I assist you?\"}\n]\n\ndef ChatMessage(msg):\n    return Div(\n        Div(msg['role'], cls=\"chat-header\"),\n        Div(msg['content'], cls=f\"chat-bubble chat-bubble-{'primary' if msg['role'] == 'user' else 'secondary'}\"),\n        cls=f\"chat chat-{'end' if msg['role'] == 'user' else 'start'}\")\n\nchatbox = Div(*[ChatMessage(msg) for msg in messages], cls=\"chat-box\", id=\"chatlist\")\n\n# show(Html(*headers, chatbox)) # Uncomment to view\n\nNext, it was back to the ChatGPT to tweak the chat box so it wouldn’t grow as messages were added. I asked:\n\"I have something like this (it's working now) \n[code]\nThe messages are added to this div so it grows over time. \nIs there a way I can set it's height to always be 80% of the total window height with a scroll bar if needed?\"\nBased on this query GPT4o helpfully shared that “This can be achieved using Tailwind CSS utility classes. Specifically, you can use h-[80vh] to set the height to 80% of the viewport height, and overflow-y-auto to add a vertical scroll bar when needed.”\nTo put it another way: none of the CSS classes in the following example were written by a human, and what edits I did make were informed by advice from the AI that made it relatively painless!\nThe actual chat functionality of the app is based on our claudette library. As with the image example, we face a potential hiccup in that getting a response from an LLM is slow. We need a way to have the user message added to the UI immadiately, and then have the response added once it’s available. We could do something similar to the image generation example above, or use websockets. Check out the full example for implementations of both, along with further details.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "FastHTML By Example"
+    ]
+  },
+  {
+    "objectID": "tutorials/by_example.html#full-example-4---multiplayer-game-of-life-example-with-websockets",
+    "href": "tutorials/by_example.html#full-example-4---multiplayer-game-of-life-example-with-websockets",
+    "title": "FastHTML By Example",
+    "section": "Full Example #4 - Multiplayer Game of Life Example with Websockets",
+    "text": "Full Example #4 - Multiplayer Game of Life Example with Websockets\nLet’s see how we can implement a collaborative website using Websockets in FastHTML. To showcase this, we will use the famous Conway’s Game of Life, which is a game that takes place in a grid world. Each cell in the grid can be either alive or dead. The cell’s state is initially given by a user before the game is started and then evolves through the iteration of the grid world once the clock starts. Whether a cell’s state will change from the previous state depends on simple rules based on its neighboring cells’ states. Here is the standard Game of Life logic implemented in Python courtesy of ChatGPT:\ngrid = [[0 for _ in range(20)] for _ in range(20)]}\ndef update_grid(grid: list[list[int]]) -&gt; list[list[int]]:\n    new_grid = [[0 for _ in range(20)] for _ in range(20)]\n    def count_neighbors(x, y):\n        directions = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]\n        count = 0\n        for dx, dy in directions:\n            nx, ny = x + dx, y + dy\n            if 0 &lt;= nx &lt; len(grid) and 0 &lt;= ny &lt; len(grid[0]): count += grid[nx][ny]\n        return count\n    for i in range(len(grid)):\n        for j in range(len(grid[0])):\n            neighbors = count_neighbors(i, j)\n            if grid[i][j] == 1:\n                if neighbors &lt; 2 or neighbors &gt; 3: new_grid[i][j] = 0\n                else: new_grid[i][j] = 1\n            elif neighbors == 3: new_grid[i][j] = 1\n    return new_grid\nThis would be a very pooring game if ran since the initial state of everything would stay dead. Therefore, we need a way of letting the user give an initial state before starting the game. FastHTML to the rescue!\ndef Grid():\n    cells = []\n    for y, row in enumerate(game_state['grid']):\n        for x, cell in enumerate(row):\n            cell_class = 'alive' if cell else 'dead'\n            cell = Div(cls=f'cell {cell_class}', hx_put='/update', hx_vals={'x': x, 'y': y}, hx_swap='none', hx_target='#gol', hx_trigger='click')\n            cells.append(cell)\n    return Div(*cells, id='grid')\n\n@rt('/update')\nasync def put(x: int, y: int):\n    grid[y][x] = 1 if grid[y][x] == 0 else 0\nAbove is a component for representing the game’s state that the user can interact with and update on the server using cool HTMX features such as hx_vals for determining which cell was clicked to make it dead or alive. Now, you probably noticed that the HTTP request in this case is a PUT request, which does not return anything and this means our client’s view of the grid world and the server’s game state will immediately become out of sync :(. We could of course just return a new Grid component with the updated state, but that would only work for a single client, if we had more, they quickly get out of sync with each other and the server. Now Websockets to the rescue!\nWebsockets are a way for the server to keep a persistent connection with clients and send data to the client without explictly being requested for information, which is not possible with HTTP. Luckily FastHTML and HTMX work well with Websockets. Simply state you wish to use websockets for your app and define a websocket route:\n...\napp = FastHTML(hdrs=(picolink, gridlink, css, htmx_ws), ws_hdr=True)\n\nplayer_queue = []\nasync def update_players():\n    for i, player in enumerate(player_queue):\n        try: await player(Grid())\n        except: player_queue.pop(i)\nasync def on_connect(send): player_queue.append(send)\nasync def on_disconnect(send): await update_players()\n\n@app.ws('/gol', conn=on_connect, disconn=on_disconnect)\nasync def ws(msg:str, send): pass\n\ndef Home(): return Title('Game of Life'), Main(gol, Div(Grid(), id='gol', cls='row center-xs'), hx_ext=\"ws\", ws_connect=\"/gol\")\n\n@rt('/update')\nasync def put(x: int, y: int):\n    grid[y][x] = 1 if grid[y][x] == 0 else 0\n    await update_players()\n...\nHere we simply keep track of all the players that have connected or disconnected to our site and when an update ocurrs, we send updates to all the players still connected via websockets. Via HTMX, you are still simply exchanging HTML from the server to the client and will swap in the content based on how you setup your hx_swap attribute. There is only one difference, that being all swaps are OOB. You can find more information on the HTMX websocket extension documentation page here. You can find a full fledge hosted example of this app here.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "FastHTML By Example"
+    ]
+  },
+  {
+    "objectID": "tutorials/by_example.html#ft-objects-and-html",
+    "href": "tutorials/by_example.html#ft-objects-and-html",
+    "title": "FastHTML By Example",
+    "section": "FT objects and HTML",
+    "text": "FT objects and HTML\nThese FT objects create a ‘FastTag’ structure [tag,children,attrs] for toxml(). When we call Div(...), the elements we pass in are the children. Attributes are passed in as keywords. class and for are special words in python, so we use cls, klass or _class instead of class and fr or _for instead of for. Note these objects are just 3-element lists - you can create custom ones too as long as they’re also 3-element lists. Alternately, leaf nodes can be strings instead (which is why you can do Div('some text')). If you pass something that isn’t a 3-element list or a string, it will be converted to a string using str()… unless (our final trick) you define a __ft__ method that will run before str(), so you can render things a custom way.\nFor example, here’s one way we could make a custom class that can be rendered into HTML:\n\nclass Person:\n    def __init__(self, name, age):\n        self.name = name\n        self.age = age\n\n    def __ft__(self):\n        return ['div', [f'{self.name} is {self.age} years old.'], {}]\n\np = Person('Jonathan', 28)\nprint(to_xml(Div(p, \"more text\", cls=\"container\")))\n\n&lt;div class=\"container\"&gt;\n  &lt;div&gt;Jonathan is 28 years old.&lt;/div&gt;\nmore text\n&lt;/div&gt;\n\n\n\nIn the examples, you’ll see we often patch in __ft__ methods to existing classes to control how they’re rendered. For example, if Person didn’t have a __ft__ method or we wanted to override it, we could add a new one like this:\n\nfrom fastcore.all import patch\n\n@patch\ndef __ft__(self:Person):\n    return Div(\"Person info:\", Ul(Li(\"Name:\",self.name), Li(\"Age:\", self.age)))\n\nshow(p)\n\n\nPerson info:\n  \n    \nName:\nJonathan\n    \n    \nAge:\n28\n    \n  \n\n\n\nSome tags from fastcore.xml are overwritten by fasthtml.core and a few are furter extended by fasthtml.xtend using this method. Over time, we hope to see others developing custom components too, giving us a larger and larger ecosystem of reusable components.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "FastHTML By Example"
+    ]
+  },
+  {
+    "objectID": "tutorials/by_example.html#custom-scripts-and-styling",
+    "href": "tutorials/by_example.html#custom-scripts-and-styling",
+    "title": "FastHTML By Example",
+    "section": "Custom Scripts and Styling",
+    "text": "Custom Scripts and Styling\nThere are many popular JavaScript and CSS libraries that can be used via a simple Script or Style tag. But in some cases you will need to write more custom code. FastHTML’s js.py contains a few examples that may be useful as reference.\nFor example, to use the marked.js library to render markdown in a div, including in components added after the page has loaded via htmx, we do something like this:\nimport { marked } from \"https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js\";\nimport { proc_htmx} from \"https://cdn.jsdelivr.net/gh/answerdotai/fasthtml-js/fasthtml.js\";\nproc_htmx('%s', e =&gt; e.innerHTML = marked.parse(e.textContent));\nproc_htmx is a shortcut we wrote that we wrote to apply a function to elements matching a selector, including the element that triggered the event. Here’s the code for reference:\nexport function proc_htmx(sel, func) {\n  htmx.onLoad(elt =&gt; {\n    const elements = htmx.findAll(elt, sel);\n    if (elt.matches(sel)) elements.unshift(elt)\n    elements.forEach(func);\n  });\n}\nThe AI Pictionary example uses a larger chunk of custom JavaScript to handle the drawing canvas. It’s a good example of the type of application where running code on the client side makes the most sense, but still shows how you can integrate it with FastHTML on the server side to add functionality (like the AI responses) easily.\nAdding styling with custom CSS and libraries such as tailwind is done the same way we add custom JavaScript. The doodle example uses Doodle.CSS to style the page in a quirky way.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "FastHTML By Example"
+    ]
+  },
+  {
+    "objectID": "tutorials/by_example.html#deploying-your-app",
+    "href": "tutorials/by_example.html#deploying-your-app",
+    "title": "FastHTML By Example",
+    "section": "Deploying Your App",
+    "text": "Deploying Your App\nWe can deply FastHTML almost anywhere you can deploy python apps. We’ve tested Railway, Replit, HuggingFace, and PythonAnywhere.\n\nRailway\n\nInstall the Railway CLI and sign up for an account.\nSet up a folder with our app as main.py\nIn the folder, run railway login.\nUse the fh_railway_deploy script to deploy our project:\n\nfh_railway_deploy MY_APP_NAME\nWhat the script does for us:\n\nDo we have an existing railway project?\n\nYes: Link the project folder to our existing Railway project.\nNo: Create a new Railway project.\n\nDeploy the project. We’ll see the logs as the service is built and run!\nFetches and displays the URL of our app.\nBy default, mounts a /app/data folder on the cloud to our app’s root folder. The app is run in /app by default, so from our app anything we store in /data will persist across restarts.\n\nA final note about Railway: We can add secrets like API keys that can be accessed as environment variables from our apps via ‘Variables’. For example, for the image app (TODO link), we can add a REPLICATE_API_KEY variable, and then in main.py we can access it as os.environ['REPLICATE_API_KEY'].\n\n\nReplit\nFork https://replit.com/@johnowhitaker/FastHTML-Example for a minimal example you can edit to your heart’s content. .replit has been edited to add the right run command (run = [\"uvicorn\", \"main:app\", \"--reload\"]) and to set up the ports correctly. FastHTML was installed with poetry add python-fasthtml, you can add additional packages as needed in the same way. Running the app in Replit will show you a webview, but you may need to open in a new tab for all features (such as cookies) to work. When you’re ready, you can deploy your app by clicking the ‘Deploy’ button. You pay for usage - for an app that is mostly idle the cost is usually a few cents per month.\nYou can store secrets like API keys via the ‘Secrets’ tab in the Replit project settings.\n\n\nHuggingFace\nFollow the instructions in this repository to deploy to HuggingFace spaces.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "FastHTML By Example"
+    ]
+  },
+  {
+    "objectID": "tutorials/by_example.html#where-next",
+    "href": "tutorials/by_example.html#where-next",
+    "title": "FastHTML By Example",
+    "section": "Where Next?",
+    "text": "Where Next?\nWe’ve covered a lot of ground here! Hopefully this has given you plenty to work with in building your own FastHTML apps. If you have any questions, feel free to ask in the #fasthtml Discord channel (in the fastai community Discord). You can look through the other examples in the fasthtml-example repository for more ideas, and keep an eye on Jeremy’s YouTube channel where we’ll be releasing a number of “dev chats” related to FastHTML in the near future.",
+    "crumbs": [
+      "Home",
+      "Tutorials",
+      "FastHTML By Example"
+    ]
+  },
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "FastHTML",
+    "section": "",
+    "text": "Welcome to the official FastHTML documentation.\nFastHTML is a new next-generation web framework for fast, scalable web applications with minimal, compact code. It’s designed to be:\nFastHTML apps are just Python code, so you can use FastHTML with the full power of the Python language and ecosystem.",
+    "crumbs": [
+      "Home",
+      "Get Started"
+    ]
+  },
+  {
+    "objectID": "index.html#installation",
+    "href": "index.html#installation",
+    "title": "FastHTML",
+    "section": "Installation",
+    "text": "Installation\nSince fasthtml is a Python library, you can install it with:\npip install python-fasthtml\nIn the near future, we hope to add component libraries that can likewise be installed via pip.",
+    "crumbs": [
+      "Home",
+      "Get Started"
+    ]
+  },
+  {
+    "objectID": "index.html#usage",
+    "href": "index.html#usage",
+    "title": "FastHTML",
+    "section": "Usage",
+    "text": "Usage\nFor a minimal app, create a file “main.py” as follows:\n\n\nmain.py\n\nfrom fasthtml.common import *\n\napp,rt = fast_app()\n\n@rt('/')\ndef get(): return Div(P('Hello World!'), hx_get=\"/change\")\n\nserve()\n\nRunning the app with python main.py prints out a link to your running app: http://localhost:5001. Visit that link in your browser and you should see a page with the text “Hello World!”. Congratulations, you’ve just created your first FastHTML app!\nAdding interactivity is surprisingly easy, thanks to HTMX. Modify the file to add this function:\n\n\nmain.py\n\n@rt('/change')\ndef get(): return P('Nice to be here!')\n\nYou now have a page with a clickable element that changes the text when clicked. When clicking on this link, the server will respond with an “HTML partial”—that is, just a snippet of HTML which will be inserted into the existing page. In this case, the returned element will replace the original P element (since that’s the default behavior of HTMX) with the new version returned by the second route.\nThis “hypermedia-based” approach to web development is a powerful way to build web applications.",
+    "crumbs": [
+      "Home",
+      "Get Started"
+    ]
+  },
+  {
+    "objectID": "index.html#next-steps",
+    "href": "index.html#next-steps",
+    "title": "FastHTML",
+    "section": "Next Steps",
+    "text": "Next Steps\nStart with the official sources to learn more about FastHTML:\n\nAbout: Learn about the core ideas behind FastHTML\nDocumentation: Learn from examples how to write FastHTML code\nIdiomatic app: Heavily commented source code walking through a complete application, including custom authentication, JS library connections, and database use.\n\nWe also have a 1-hour intro video:\n\nThe capabilities of FastHTML are vast and growing, and not all the features and patterns have been documented yet. Be prepared to invest time into studying and modifying source code, such as the main FastHTML repo’s notebooks and the official FastHTML examples repo:\n\nFastHTML Examples Repo on GitHub\nFastHTML Repo on GitHub\n\nThen explore the small but growing third-party ecosystem of FastHTML tutorials, notebooks, libraries, and components:\n\nCreating Custom FastHTML Tags for Markdown Rendering by Isaac Flath\nYour tutorial here!\n\nFinally, join the FastHTML community to ask questions, share your work, and learn from others:\n\nDiscord",
+    "crumbs": [
+      "Home",
+      "Get Started"
+    ]
+  },
+  {
+    "objectID": "api/xtend.html",
+    "href": "api/xtend.html",
+    "title": "Component extensions",
+    "section": "",
+    "text": "from pprint import pprint\n\npicocondlink is the class-conditional css link tag, and picolink is the regular tag.\n\nshow(picocondlink)\n\n\n\n\n\n\n\nsource\n\nset_pico_cls\n\n set_pico_cls ()\n\nRun this to make jupyter outputs styled with pico:\n\nset_pico_cls()\n\n\n\n\n\nsource\n\n\nHtml\n\n Html (*c, doctype=True, **kwargs)\n\nAn HTML tag, optionally preceeded by !DOCTYPE HTML\n\nsource\n\n\nA\n\n A (*c, hx_get=None, target_id=None, hx_swap=None, href='#', id=None,\n    cls=None, title=None, style=None, accesskey=None,\n    contenteditable=None, dir=None, draggable=None, enterkeyhint=None,\n    hidden=None, inert=None, inputmode=None, lang=None, popover=None,\n    spellcheck=None, tabindex=None, translate=None, hx_post=None,\n    hx_put=None, hx_delete=None, hx_patch=None, hx_trigger=None,\n    hx_target=None, hx_include=None, hx_select=None, hx_indicator=None,\n    hx_push_url=None, hx_confirm=None, hx_disable=None,\n    hx_replace_url=None, hx_on=None, **kwargs)\n\nAn A tag; href defaults to ‘#’ for more concise use with HTMX\n\nA('text', ht_get='/get', target_id='id')\n\n&lt;a href=\"#\" ht-get=\"/get\" hx-target=\"#id\"&gt;text&lt;/a&gt;\n\n\n\nsource\n\n\nAX\n\n AX (txt, hx_get=None, target_id=None, hx_swap=None, href='#', id=None,\n     cls=None, title=None, style=None, accesskey=None,\n     contenteditable=None, dir=None, draggable=None, enterkeyhint=None,\n     hidden=None, inert=None, inputmode=None, lang=None, popover=None,\n     spellcheck=None, tabindex=None, translate=None, hx_post=None,\n     hx_put=None, hx_delete=None, hx_patch=None, hx_trigger=None,\n     hx_target=None, hx_include=None, hx_select=None, hx_indicator=None,\n     hx_push_url=None, hx_confirm=None, hx_disable=None,\n     hx_replace_url=None, hx_on=None, **kwargs)\n\nAn A tag with just one text child, allowing hx_get, target_id, and hx_swap to be positional params\n\nAX('text', '/get', 'id')\n\n&lt;a href=\"#\" hx-get=\"/get\" hx-target=\"#id\"&gt;text&lt;/a&gt;\n\n\n\nsource\n\n\nCheckbox\n\n Checkbox (checked:bool=False, label=None, value='1', target_id=None,\n           id=None, cls=None, title=None, style=None, accesskey=None,\n           contenteditable=None, dir=None, draggable=None,\n           enterkeyhint=None, hidden=None, inert=None, inputmode=None,\n           lang=None, popover=None, spellcheck=None, tabindex=None,\n           translate=None, hx_get=None, hx_post=None, hx_put=None,\n           hx_delete=None, hx_patch=None, hx_trigger=None, hx_target=None,\n           hx_swap=None, hx_include=None, hx_select=None,\n           hx_indicator=None, hx_push_url=None, hx_confirm=None,\n           hx_disable=None, hx_replace_url=None, hx_on=None, **kwargs)\n\nA Checkbox optionally inside a Label\n\nshow(Checkbox(True, 'Check me out!'))\n\n\n  \nCheck me out!\n\n\n\n\nsource\n\n\nCard\n\n Card (*c, header=None, footer=None, target_id=None, id=None, cls=None,\n       title=None, style=None, accesskey=None, contenteditable=None,\n       dir=None, draggable=None, enterkeyhint=None, hidden=None,\n       inert=None, inputmode=None, lang=None, popover=None,\n       spellcheck=None, tabindex=None, translate=None, hx_get=None,\n       hx_post=None, hx_put=None, hx_delete=None, hx_patch=None,\n       hx_trigger=None, hx_target=None, hx_swap=None, hx_include=None,\n       hx_select=None, hx_indicator=None, hx_push_url=None,\n       hx_confirm=None, hx_disable=None, hx_replace_url=None, hx_on=None,\n       **kwargs)\n\nA PicoCSS Card, implemented as an Article with optional Header and Footer\n\nshow(Card('body', header=P('head'), footer=P('foot')))\n\n\n  \n    head\n  \nbody\n  \n    foot\n  \n\n\n\n\nsource\n\n\nGroup\n\n Group (*c, target_id=None, id=None, cls=None, title=None, style=None,\n        accesskey=None, contenteditable=None, dir=None, draggable=None,\n        enterkeyhint=None, hidden=None, inert=None, inputmode=None,\n        lang=None, popover=None, spellcheck=None, tabindex=None,\n        translate=None, hx_get=None, hx_post=None, hx_put=None,\n        hx_delete=None, hx_patch=None, hx_trigger=None, hx_target=None,\n        hx_swap=None, hx_include=None, hx_select=None, hx_indicator=None,\n        hx_push_url=None, hx_confirm=None, hx_disable=None,\n        hx_replace_url=None, hx_on=None, **kwargs)\n\nA PicoCSS Group, implemented as a Fieldset with role ‘group’\n\nshow(Group(Input(), Button(\"Save\")))\n\n\n  \n  Save\n\n\n\n\nsource\n\n\nSearch\n\n Search (*c, target_id=None, id=None, cls=None, title=None, style=None,\n         accesskey=None, contenteditable=None, dir=None, draggable=None,\n         enterkeyhint=None, hidden=None, inert=None, inputmode=None,\n         lang=None, popover=None, spellcheck=None, tabindex=None,\n         translate=None, hx_get=None, hx_post=None, hx_put=None,\n         hx_delete=None, hx_patch=None, hx_trigger=None, hx_target=None,\n         hx_swap=None, hx_include=None, hx_select=None, hx_indicator=None,\n         hx_push_url=None, hx_confirm=None, hx_disable=None,\n         hx_replace_url=None, hx_on=None, **kwargs)\n\nA PicoCSS Search, implemented as a Form with role ‘search’\n\nshow(Search(Input(type=\"search\"), Button(\"Search\")))\n\n\n  \n  Search\n\n\n\n\nsource\n\n\nGrid\n\n Grid (*c, cls='grid', target_id=None, id=None, title=None, style=None,\n       accesskey=None, contenteditable=None, dir=None, draggable=None,\n       enterkeyhint=None, hidden=None, inert=None, inputmode=None,\n       lang=None, popover=None, spellcheck=None, tabindex=None,\n       translate=None, hx_get=None, hx_post=None, hx_put=None,\n       hx_delete=None, hx_patch=None, hx_trigger=None, hx_target=None,\n       hx_swap=None, hx_include=None, hx_select=None, hx_indicator=None,\n       hx_push_url=None, hx_confirm=None, hx_disable=None,\n       hx_replace_url=None, hx_on=None, **kwargs)\n\nA PicoCSS Grid, implemented as child Divs in a Div with class ‘grid’\n\ncolors = [Input(type=\"color\", value=o) for o in ('#e66465', '#53d2c5', '#f6b73c')]\nshow(Grid(*colors))\n\n\n  \n  \n  \n\n\n\n\nsource\n\n\nDialogX\n\n DialogX (*c, open=None, header=None, footer=None, id=None,\n          target_id=None, cls=None, title=None, style=None,\n          accesskey=None, contenteditable=None, dir=None, draggable=None,\n          enterkeyhint=None, hidden=None, inert=None, inputmode=None,\n          lang=None, popover=None, spellcheck=None, tabindex=None,\n          translate=None, hx_get=None, hx_post=None, hx_put=None,\n          hx_delete=None, hx_patch=None, hx_trigger=None, hx_target=None,\n          hx_swap=None, hx_include=None, hx_select=None,\n          hx_indicator=None, hx_push_url=None, hx_confirm=None,\n          hx_disable=None, hx_replace_url=None, hx_on=None, **kwargs)\n\nA PicoCSS Dialog, with children inside a Card\n\nhdr = Div(Button(aria_label=\"Close\", rel=\"prev\"), P('confirm'))\nftr = Div(Button('Cancel', cls=\"secondary\"), Button('Confirm'))\nd = DialogX('thank you!', header=hdr, footer=ftr, open=None, id='dlgtest')\n# use js or htmx to display modal\n\n\nsource\n\n\nHidden\n\n Hidden (value:str='', target_id=None, id=None, cls=None, title=None,\n         style=None, accesskey=None, contenteditable=None, dir=None,\n         draggable=None, enterkeyhint=None, hidden=None, inert=None,\n         inputmode=None, lang=None, popover=None, spellcheck=None,\n         tabindex=None, translate=None, hx_get=None, hx_post=None,\n         hx_put=None, hx_delete=None, hx_patch=None, hx_trigger=None,\n         hx_target=None, hx_swap=None, hx_include=None, hx_select=None,\n         hx_indicator=None, hx_push_url=None, hx_confirm=None,\n         hx_disable=None, hx_replace_url=None, hx_on=None, **kwargs)\n\nAn Input of type ‘hidden’\n\nsource\n\n\nContainer\n\n Container (*args, target_id=None, id=None, cls=None, title=None,\n            style=None, accesskey=None, contenteditable=None, dir=None,\n            draggable=None, enterkeyhint=None, hidden=None, inert=None,\n            inputmode=None, lang=None, popover=None, spellcheck=None,\n            tabindex=None, translate=None, hx_get=None, hx_post=None,\n            hx_put=None, hx_delete=None, hx_patch=None, hx_trigger=None,\n            hx_target=None, hx_swap=None, hx_include=None, hx_select=None,\n            hx_indicator=None, hx_push_url=None, hx_confirm=None,\n            hx_disable=None, hx_replace_url=None, hx_on=None, **kwargs)\n\nA PicoCSS Container, implemented as a Main with class ‘container’\n\nsource\n\n\nScript\n\n Script (code:str='', id=None, cls=None, title=None, style=None, **kwargs)\n\nA Script tag that doesn’t escape its code\n\nsource\n\n\nStyle\n\n Style (*c, id=None, cls=None, title=None, style=None, **kwargs)\n\nA Style tag that doesn’t escape its code\n\nsource\n\n\ndouble_braces\n\n double_braces (s)\n\nConvert single braces to double braces if next to special chars or newline\n\nsource\n\n\nundouble_braces\n\n undouble_braces (s)\n\nConvert double braces to single braces if next to special chars or newline\n\nsource\n\n\nloose_format\n\n loose_format (s, **kw)\n\nString format s using kw, without being strict about braces outside of template params\n\nsource\n\n\nScriptX\n\n ScriptX (fname, type=None, _async=None, defer=None, charset=None,\n          crossorigin=None, integrity=None, **kw)\n\nA script element with contents read from fname\n\nsource\n\n\nreplace_css_vars\n\n replace_css_vars (css, pre='tpl', **kwargs)\n\nReplace var(--) CSS variables with kwargs if name prefix matches pre\n\nsource\n\n\nStyleX\n\n StyleX (fname, **kw)\n\nA style element with contents read from fname and variables replaced from kw\n\nsource\n\n\nrun_js\n\n run_js (js, id=None, **kw)\n\nRun js script, auto-generating id based on name of caller if needed, and js-escaping any kw params\n\nsource\n\n\nTitled\n\n Titled (title:str='FastHTML app', *args, target_id=None, id=None,\n         cls=None, style=None, accesskey=None, contenteditable=None,\n         dir=None, draggable=None, enterkeyhint=None, hidden=None,\n         inert=None, inputmode=None, lang=None, popover=None,\n         spellcheck=None, tabindex=None, translate=None, hx_get=None,\n         hx_post=None, hx_put=None, hx_delete=None, hx_patch=None,\n         hx_trigger=None, hx_target=None, hx_swap=None, hx_include=None,\n         hx_select=None, hx_indicator=None, hx_push_url=None,\n         hx_confirm=None, hx_disable=None, hx_replace_url=None,\n         hx_on=None, **kwargs)\n\nAn HTML partial containing a Title, and H1, and any provided children\n\nsource\n\n\nSocials\n\n Socials (title, site_name, description, image, url=None, w=1200, h=630,\n          twitter_site=None, creator=None, card='summary')\n\nOG and Twitter social card headers\n\nsource\n\n\nFavicon\n\n Favicon (light_icon, dark_icon)\n\nLight and dark favicon headers\n\nsource\n\n\njsd\n\n jsd (org, repo, root, path, prov='gh', typ='script', ver=None, esm=False,\n      **kwargs)\n\njsdelivr Script or CSS Link tag, or URL",
+    "crumbs": [
+      "Home",
+      "Source",
+      "Component extensions"
+    ]
+  },
+  {
+    "objectID": "api/components.html",
+    "href": "api/components.html",
+    "title": "Components",
+    "section": "",
+    "text": "from lxml import html as lx\nfrom pprint import pprint\n\n\nsource\n\nshow\n\n show (ft, *rest)\n\n\nsource\n\n\nft_html\n\n ft_html (tag:str, *c, id=None, cls=None, title=None, style=None,\n          **kwargs)\n\n\nsource\n\n\nft_hx\n\n ft_hx (tag:str, *c, target_id=None, id=None, cls=None, title=None,\n        style=None, accesskey=None, contenteditable=None, dir=None,\n        draggable=None, enterkeyhint=None, hidden=None, inert=None,\n        inputmode=None, lang=None, popover=None, spellcheck=None,\n        tabindex=None, translate=None, hx_get=None, hx_post=None,\n        hx_put=None, hx_delete=None, hx_patch=None, hx_trigger=None,\n        hx_target=None, hx_swap=None, hx_include=None, hx_select=None,\n        hx_indicator=None, hx_push_url=None, hx_confirm=None,\n        hx_disable=None, hx_replace_url=None, hx_on=None, **kwargs)\n\n\nsource\n\n\nFile\n\n File (fname)\n\nUse the unescaped text in file fname directly\nFor tags that have a name attribute, it will be set to the value of id if not provided explicitly:\n\nForm(Button(target_id='foo', id='btn'),\n     hx_post='/', target_id='tgt', id='frm')\n\n&lt;form hx-post=\"/\" hx-target=\"#tgt\" id=\"frm\" name=\"frm\"&gt;\n  &lt;button hx-target=\"#foo\" id=\"btn\" name=\"btn\"&gt;&lt;/button&gt;\n&lt;/form&gt;\n\n\n\nsource\n\n\nfill_form\n\n fill_form (form:fastcore.xml.FT, obj)\n\nFills named items in form using attributes in obj\n\n@dataclass\nclass TodoItem:\n    title:str; id:int; done:bool; details:str\n                \ntodo = TodoItem(id=2, title=\"Profit\", done=True, details=\"Details\")\ncheck = Label(Input(type=\"checkbox\", cls=\"checkboxer\", id=\"done\", data_foo=\"bar\"), \"Done\")\nform = Form(Fieldset(Input(cls=\"char\", id=\"title\"), check, Input(type=\"hidden\", id=\"id\"), Textarea(id='details'), Button(\"Save\")))\nform = fill_form(form, todo)\nform\n\n&lt;form&gt;\n  &lt;fieldset&gt;\n    &lt;input id=\"title\" class=\"char\" name=\"title\" value=\"Profit\"&gt;&lt;/input&gt;\n    &lt;label&gt;\n      &lt;input type=\"checkbox\" data-foo=\"bar\" id=\"done\" class=\"checkboxer\" name=\"done\" checked=\"1\"&gt;&lt;/input&gt;\nDone\n    &lt;/label&gt;\n    &lt;input type=\"hidden\" id=\"id\" name=\"id\" value=\"2\"&gt;&lt;/input&gt;\n    &lt;textarea id=\"details\" name=\"details\"&gt;Details&lt;/textarea&gt;\n    &lt;button&gt;Save&lt;/button&gt;\n  &lt;/fieldset&gt;\n&lt;/form&gt;\n\n\n\nsource\n\n\nfill_dataclass\n\n fill_dataclass (src, dest)\n\nModifies dataclass in-place and returns it\n\nnt = TodoItem('', 0, False, '')\nfill_dataclass(todo, nt)\nnt\n\nTodoItem(title='Profit', id=2, done=True, details='Details')\n\n\n\nsource\n\n\nfind_inputs\n\n find_inputs (e, tags='input', **kw)\n\n\n\nExported source\ndef find_inputs(e, tags='input', **kw):\n    # Recursively find all elements in `e` with `tags` and attrs matching `kw`\n    if not isinstance(e, (list,tuple)): return []\n    inputs = []\n    if isinstance(tags,str): tags = [tags]\n    elif tags is None: tags = []\n    cs = e\n    if isinstance(e, list):\n        tag,cs,attr = e\n        if e[0] in tags and kw.items()&lt;=e[2].items(): inputs.append(e)\n    for o in cs: inputs += find_inputs(o, tags, **kw)\n    return inputs\n\n\n\nfind_inputs(form, id='title')\n\n[['input',\n  (),\n  {'id': 'title', 'class': 'char', 'name': 'title', 'value': 'Profit'}]]\n\n\nYou can also use lxml for more sophisticated searching:\n\nelem = lx.fromstring(to_xml(form))\nelem.xpath(\"//input[@id='title']/@value\")\n\n['Profit']\n\n\n\nsource\n\n\ngetattr\n\n __getattr__ (tag)\n\n\nsource\n\n\nhtml2ft\n\n html2ft (html)\n\nConvert HTML to an ft expression\n\nh = to_xml(form)\nhl_md(html2ft(h), 'python')\n\nForm(\n    Fieldset(\n        Input(id='title', name='title', value='Profit', cls='char'),\n        Label(\n            Input(type='checkbox', data_foo='bar', id='done', name='done', checked='1', cls='checkboxer'),\n            'Done'\n        ),\n        Input(type='hidden', id='id', name='id', value='2'),\n        Textarea('Details', id='details', name='details'),\n        Button('Save')\n    )\n)",
+    "crumbs": [
+      "Home",
+      "Source",
+      "Components"
+    ]
+  }
+]
